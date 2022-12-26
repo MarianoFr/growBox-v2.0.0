@@ -1,0 +1,16 @@
+#ifndef DEBUG_FLAGS_H
+#define DEBUG_FLAGS_H
+
+#define USE_RTC 1
+#define SERIAL_DEBUG 0
+#define DEBUG_RGB 0
+#define RTC_DEBUG 0
+#define TIME_DEBUG  0
+#define FIRE_DEBUG  0
+#define ESPtag_DEBUG 0
+#define DHT_DEBUG 0
+#define BH_DEBUG 0
+#define SOIL_DEBUG 0
+#define WIFI_DEBUG 0
+
+#endif
