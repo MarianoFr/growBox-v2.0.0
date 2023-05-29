@@ -21,16 +21,6 @@
 #include "fb_mgmt.h"
 #include "gb_sensors_outputs.h"
 
-//RGB errors
-#define NO_WIFI_CRED  0
-#define WIFI_CONN     1
-#define WIFI_DISC     2
-#define NO_USER       3
-#define DHT_ERR       4
-#define RTC_ERR       5
-#define SOIL_ERR      6
-#define BH_1750_ERR   7
-
 TaskHandle_t wiFiHandler;//Task to handle wifi in core 0
 
 /* Flag to detect whether user's WiFi credentials
@@ -79,6 +69,7 @@ QueueHandle_t writeQueue;
 QueueHandle_t waterQueue;
 float auxTemp=0;
 float auxHumidity=0;
+int rgb_state = WIFI_DISC;
 
  /***********************************
  * wifi core 0 tasks prototype
@@ -92,11 +83,9 @@ void wiFiTasks( void * pvParameters );
 /*****************************************************************************/
 void setup() {
 
-  String users = "users/";
-  String GBconnected = "/GBconnected/";
-  String use = "/user/";
   String gbs = "growboxs/";
-
+  char aux_1[100];
+  char mac_char[100]; 
   pinMode(PIN_RED,   OUTPUT);
   pinMode(PIN_GREEN, OUTPUT);
   pinMode(PIN_BLUE,  OUTPUT);
@@ -120,14 +109,14 @@ void setup() {
   vTaskDelay(100/portTICK_PERIOD_MS);
   EEPROM.begin(512);
   vTaskDelay(100/portTICK_PERIOD_MS);
-  
+  RGBalert();
   // Start up the library for DHT11
   dht.begin();
   vTaskDelay(100/portTICK_PERIOD_MS);
   // Start up the library for BH1750
   if(!Wire.begin())
-  {
-    RGBalert(BH_1750_ERR);
+  {    
+    rgb_state |= BH_1750_ERR;
   }
   /*
   Full mode list:
@@ -161,25 +150,27 @@ void setup() {
       /*Set database read timeout to 1 minute (max 15 minutes)*/
       Firebase.setReadTimeout(firebaseData2, 1000 * 60 );
       /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
-      Firebase.setwriteSizeLimit(firebaseData2, "medium ");
+      Firebase.setwriteSizeLimit(firebaseData2, "medium");
       /*Get from DB the user's uid which corresponds to this GrowBox*/
-      Firebase.setBool(firebaseData2, users + mac + GBconnected, true);
-      char aux_1[100];
-      char mac_char[100];
       mac.toCharArray(mac_char, mac.length()+1);
-      sprintf(aux_1,"users/%s/user/", mac_char);    
+      sprintf(aux_1,"users/%s/GBconnected/", mac_char);   
+      Firebase.setBool(firebaseData2, aux_1, true);
+      sprintf(aux_1,"users/%s/user/", mac_char);
       if (!Firebase.getString(firebaseData2, aux_1, users_uid))
       {
-        Firebase.setString(firebaseData2, users + mac + users, "");
+        Firebase.setString(firebaseData2, aux_1, "NULL");
+        rgb_state |= NO_USER;
+        RGBalert(); 
       }
-      while ( users_uid == "" )
-      {
-        RGBalert(NO_USER);
-        Firebase.getString(firebaseData2, users + mac + use, users_uid);
+      while (strcmp(users_uid, "NULL") == 0)
+      {               
+        Firebase.getString(firebaseData2, aux_1, users_uid);
         debounceWiFiReset();
+        vTaskDelay(pdMS_TO_TICKS(1000));
       }
-      path = gbs + String(users_uid);
-      
+      rgb_state &= !NO_USER;
+      RGBalert();
+      path = gbs + String(users_uid);      
       /*Init the NTP library*/
       configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
       if (getLocalTime(&currentTime))
@@ -215,7 +206,7 @@ void setup() {
 #if SERIAL_DEBUG
     Serial.println("Server started");
 #endif
-    RGBalert(NO_WIFI_CRED);
+    //RGBalert(NO_WIFI_CRED);
     setupServer();
     gettingWiFiCredentials = true;
   }
@@ -261,28 +252,12 @@ void loop()
       #endif
         rtc_adjusted = true;
       }
-    }
-    vTaskDelay(100/portTICK_PERIOD_MS);
+    }    
 #endif
   }
   //Attend sensors and create ESPtag
   if(!gettingWiFiCredentials)
   {
-#if USE_RTC
-    vTaskDelay(250/portTICK_PERIOD_MS);
-    tm now = rtc.getTimeStruct();
-    char buf2[20];
-    strftime(buf2, 20,"%Y-%m-%d %X",&now); 
-#if SERIAL_DEBUG && RTC_DEBUG
-        Serial.println(String(buf2));
-#endif
-    tx.ESPtag = String(buf2);
-    currentHour = now.tm_hour;
-#if SERIAL_DEBUG && TIME_DEBUG
-    Serial.println("Current hour:" + String(currentHour));
-#endif
-#endif
-
     analogSoilRead ( &Rx, &tx );    
     TemperatureHumidityHandling ( &Rx, &tx, currentHour );    
     PhotoPeriod ( &Rx, &tx, currentHour );    
@@ -291,6 +266,19 @@ void loop()
     static unsigned long previousWrite = 0;
     if ((unsigned long)(millis() - previousWrite) > writePeriod)
     {
+  #if USE_RTC    
+      tm now = rtc.getTimeStruct();
+      char buf2[20];
+      strftime(buf2, 20,"%Y-%m-%d %X",&now); 
+  #if SERIAL_DEBUG && RTC_DEBUG
+          Serial.println(String(buf2));
+  #endif
+      tx.ESPtag = String(buf2);
+      currentHour = now.tm_hour;
+  #if SERIAL_DEBUG && TIME_DEBUG
+      Serial.println("Current hour:" + String(currentHour));
+  #endif
+  #endif
       ReadBH1750(&tx);
       auxTemp = dht.readTemperature();
       auxHumidity = dht.readHumidity();

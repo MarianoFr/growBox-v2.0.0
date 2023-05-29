@@ -3,7 +3,7 @@
 
 #define USE_RTC 1
 #define SERIAL_DEBUG 0
-#define DEBUG_RGB 0
+#define RGB_DEBUG 0
 #define RTC_DEBUG 0
 #define TIME_DEBUG  0
 #define FIRE_DEBUG  0

@@ -24,7 +24,7 @@ extern FirebaseData firebaseData1;
 extern String mac;
 /* Flag activated when WiFi credentials are beign asked by ESP32 */
 extern bool gettingWiFiCredentials;
-extern char users_uid[];
+extern char users_uid[100];
 extern String path;
 extern QueueHandle_t writeQueue;
 extern QueueHandle_t waterQueue;
@@ -66,5 +66,5 @@ extern bool wrtWater;
 extern readControl Rx;
 extern writeControl Tx;
 extern int currentHour;
-
+extern int rgb_state;
 #endif

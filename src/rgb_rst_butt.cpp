@@ -5,65 +5,114 @@
  * input ERROR
  * out none
  ***********************************/
-void RGBalert(uint8_t error)
+void RGBalert(void)
 {
     static uint8_t green = 0, blue = 0, red = 0;
-    switch (error)
+    if(rgb_state & WIFI_DISC)
     {
-    case NO_WIFI_CRED:
         green = 0;
         blue = 0;
-        red = 255;
-        Serial.println("NO_WIFI_CRED");
-        break;
-    case WIFI_CONN:
+        red = 0;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("WIFI_DISC");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & WIFI_CONN)
+    {
         green = 255;
         blue = 0;
         red = 0;
+    #if SERIAL_DEBUG && RGB_DEBUG
         Serial.println("WIFI_CONN");
-        break;
-    case WIFI_DISC:
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & NO_WIFI_CRED)
+    {
         green = 0;
         blue = 255;
         red = 0;
-        Serial.println("WIFI_DISC");
-        break;
-    case NO_USER:
-        green = 50;
-        blue = 127;
-        red = 0;
-        Serial.println("NO_USER");
-        break;
-    case DHT_ERR:
-        green = 0;
-        blue = 0;
-        red = 0;
-        Serial.println("DHT_ERR");
-        break;
-    case RTC_ERR:
-        green = 0;
-        blue = 0;
-        red = 0;
-        Serial.println("RTC_ERR");
-        break;
-    case SOIL_ERR:
-        green = 0;
-        blue = 0;
-        red = 0;
-        Serial.println("SOIL_ERR");
-        break;
-    case BH_1750_ERR:
-        green = 0;
-        blue = 0;
-        red = 0;
-        Serial.println("BH_1750_ERR");
-        break;
-    default:
-        break;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("NO_WIFI_CRED");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    analogWrite(PIN_GREEN, green);
-    analogWrite(PIN_BLUE, blue);
-    analogWrite(PIN_RED, red);
+    if(rgb_state & NO_USER)
+    {
+        green = 0;
+        blue = 0;
+        red = 255;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("NO_USER");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & DHT_ERR)
+    {
+        green = 255;
+        blue = 255;
+        red = 0;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("DHT_ERR");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & RTC_ERR)
+    {
+        green = 0;
+        blue = 255;
+        red = 255;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("RTC_ERR");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & SOIL_ERR)
+    {
+        green = 255;
+        blue = 0;
+        red = 255;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("SOIL_ERR");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    if(rgb_state & BH_1750_ERR)
+    {
+        green = 255;
+        blue = 255;
+        red = 255;
+    #if SERIAL_DEBUG && RGB_DEBUG
+        Serial.println("BH_1750_ERR");
+    #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    
     return;
 }
 
@@ -89,12 +138,22 @@ void debounceWiFiReset(void)
             buttonState = reading;
             if (buttonState == HIGH)
             {
-                Firebase.setString(firebaseData2, "users/" + mac + "/user/", "");
-                delay(10);
+                char aux_1[100];
+                char mac_char[100];
+                char user_id[100];
+                mac.toCharArray(mac_char, mac.length()+1);
+                sprintf(aux_1,"users/%s/user/", mac_char);
+                Firebase.getString(firebaseData2, aux_1, user_id);
+                if(Firebase.setString(firebaseData2, aux_1, "NULL"))
+                {
+                    sprintf(aux_1,"growboxs/%s/", user_id);
+                    Firebase.deleteNode(firebaseData2, aux_1);
+                }
+                    
+                vTaskDelay(pdMS_TO_TICKS(2000));
                 WiFi.disconnect();
                 EEPROM.write(WIFI_CRED_FLAG, NO_CREDENTIALS); // wifi flag erased, credentials will be reset.
                 EEPROM.commit();
-                vTaskDelay(100 / portTICK_PERIOD_MS);
                 ESP.restart();
             }
         }

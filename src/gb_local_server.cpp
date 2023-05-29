@@ -14,7 +14,7 @@ char ssidc[30];//Stores the router name, they must be less than 30 characters in
 char passwordc[30];//Stores the password
 /* Flag activated when WiFi credentials are beign asked by ESP32 */
 bool gettingWiFiCredentials = false;
-char users_uid[100] = "";
+char users_uid[100] = "NULL";
 //Creating the input form
 const char INDEX_HTML[] =
   "<!DOCTYPE HTML>"
@@ -161,16 +161,22 @@ bool checkWiFiCredentials() {
 bool connectWifi() {
   // Let us connect to WiFi and FireBase
   WiFi.disconnect();
-  delay(1000);
-  WiFi.begin(ssidc, passwordc);
+  delay(100);  
   while (WiFi.status() != WL_CONNECTED)
   {
+    WiFi.begin(ssidc, passwordc);
+    debounceWiFiReset();
 #if SERIAL_DEBUG && WIFI_DEBUG        
         Serial.println("connecting wifi");
 #endif
-    delay(300);
+    
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    rgb_state |= WIFI_DISC;
+    RGBalert();
   }
-  RGBalert(WIFI_CONN);  
+  rgb_state &= !WIFI_DISC;
+  rgb_state |= WIFI_CONN;
+  RGBalert();  
   return true;
 }
 
@@ -194,9 +200,9 @@ void wiFiTasks( void * pvParameters ) {
       if ( EEPROM.read( WIFI_CRED_FLAG ) == WITH_CREDENTIALS)
       {
         WiFi.softAPdisconnect (true);
-        delay(5);
+        vTaskDelay(pdMS_TO_TICKS(5));
         checkWiFiCredentials();
-        delay(5);
+        vTaskDelay(pdMS_TO_TICKS(5));
         gettingWiFiCredentials = false;
         connectWifi();
       }

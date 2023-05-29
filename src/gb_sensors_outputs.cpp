@@ -33,6 +33,8 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
 #if SERIAL_DEBUG && DHT_DEBUG
   Serial.print("**************Temperature: ");
   Serial.println((*tx).temperature);
+  Serial.print("**************Humidity: ");
+  Serial.println((*tx).humidity);
 #endif 
   if ( (!isnan((*tx).temperature)) && (!isnan((*tx).humidity)) ) 
   { //TODO alarm sensor not working
@@ -241,25 +243,35 @@ void PhotoPeriod( struct readControl *rx, struct writeControl *tx , int currentH
 /*******************/
 /*Analog soil test */
 /*******************/
-void analogSoilRead(struct readControl *rx, struct writeControl *tx) {//bool
-
+void analogSoilRead(struct readControl *rx, struct writeControl *tx)
+{
   bool stopWater1 = false;
   static unsigned long wateringDelay = 3*60000; //En Milisegundos
   static unsigned long manualWateringStart = 0;
-
   /*get soil moisture reading*/
-  int reading = analogRead(SOILPIN);//the bigger the reading, the drier the ground
-  for(int i = 0; i<99; i++){
-    reading+=analogRead(SOILPIN);
+  uint32_t voltage_mv = 0;//the bigger the reading, the drier the ground
+  float voltage_v = 0;
+  float slope = 2.48, intercept = -0.72;
+  for(int i = 0; i<10; i++){
+    voltage_mv+=analogReadMilliVolts(SOILPIN);
   }
-  reading/=100;
-  (*tx).soilMoisture = -0.067 * reading + 216.230;
-  (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
-
+  voltage_mv/=10;
+  float aux = voltage_mv;
+  voltage_v = aux/1000;
+  //(*tx).soilMoisture = -0.067 * reading + 216.230;
+  (*tx).soilMoisture = ((1/voltage_v)*slope + intercept)*100;
 #if SERIAL_DEBUG && SOIL_DEBUG
-  Serial.print("**************Soil moisture: ");
+  Serial.print("Voltage in mV:" );
+  Serial.println(voltage_mv);
+  Serial.print("Voltage in mV:" );
+  Serial.println(aux);
+  Serial.print("Voltage in V:" );
+  Serial.println(voltage_v);
+  Serial.print("**************Soil moisture: "); 
   Serial.println((*tx).soilMoisture);
-#endif 
+  delay(30000);
+#endif
+  (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
 
   if ( (*rx).automaticWatering ) {
     /*Compare with set point*/
