@@ -23,8 +23,8 @@ void RGBalert(void)
     }
     if(rgb_state & WIFI_CONN)
     {
-        green = 255;
-        blue = 0;
+        green = 0;
+        blue = 255;
         red = 0;
     #if SERIAL_DEBUG && RGB_DEBUG
         Serial.println("WIFI_CONN");
@@ -36,8 +36,8 @@ void RGBalert(void)
     }
     if(rgb_state & NO_WIFI_CRED)
     {
-        green = 0;
-        blue = 255;
+        green = 255;
+        blue = 0;
         red = 0;
     #if SERIAL_DEBUG && RGB_DEBUG
         Serial.println("NO_WIFI_CRED");

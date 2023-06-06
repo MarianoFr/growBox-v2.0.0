@@ -1,5 +1,5 @@
-#ifndef RGB_RSST_BUTT_H
-#define RGB_RSST_BUTT_H
+#ifndef RGB_RST_BUTT_H
+#define RGB_RST_BUTT_H
 #include <Arduino.h>
 #include "globals.h"
 #include "fb_mgmt.h"

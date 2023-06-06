@@ -240,9 +240,9 @@ bool DHT::read(bool force) {
   // Reset 40 bits of received data to zero.
   data[0] = data[1] = data[2] = data[3] = data[4] = 0;
 
-#if defined(ESP8266)
+//#if defined(ESP8266)
   yield(); // Handle WiFi / reset software watchdog
-#endif
+//#endif
 
   // Send start signal.  See DHT datasheet for full signal diagram:
   //   http://www.adafruit.com/datasheets/Digital%20humidity%20and%20temperature%20sensor%20AM2302.pdf
@@ -250,7 +250,7 @@ bool DHT::read(bool force) {
   // Go into high impedence state to let pull-up raise data line level and
   // start the reading process.
   pinMode(_pin, INPUT_PULLUP);
-  delay(1);
+  vTaskDelay(pdMS_TO_TICKS(1));
 
   // First set data line low for a period according to sensor type
   pinMode(_pin, OUTPUT);
@@ -258,11 +258,11 @@ bool DHT::read(bool force) {
   switch (_type) {
   case DHT22:
   case DHT21:
-    delayMicroseconds(1100); // data sheet says "at least 1ms"
+    vTaskDelay(pdMS_TO_TICKS(1.1)); // data sheet says "at least 1ms"
     break;
   case DHT11:
   default:
-    delay(20); // data sheet says at least 18ms, 20ms just to be safe
+    vTaskDelay(pdMS_TO_TICKS(20)); // data sheet says at least 18ms, 20ms just to be safe
     break;
   }
 
@@ -272,7 +272,7 @@ bool DHT::read(bool force) {
     pinMode(_pin, INPUT_PULLUP);
 
     // Delay a moment to let sensor pull data line low.
-    delayMicroseconds(pullTime);
+    vTaskDelay(pdMS_TO_TICKS(pullTime/1000));
 
     // Now start reading the data line to get the value from the DHT sensor.
 

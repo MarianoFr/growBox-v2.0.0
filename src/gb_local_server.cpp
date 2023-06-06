@@ -161,7 +161,7 @@ bool checkWiFiCredentials() {
 bool connectWifi() {
   // Let us connect to WiFi and FireBase
   WiFi.disconnect();
-  delay(100);  
+  vTaskDelay(pdMS_TO_TICKS(100));  
   while (WiFi.status() != WL_CONNECTED)
   {
     WiFi.begin(ssidc, passwordc);

@@ -19,14 +19,10 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
     (*tx).temperature = auxTemp;
     dhtFails = 0;
   }
-  /*else
+  else
   {
-    dhtFails++;
-    if(dhtFails == 10)
-    {
-      dht.begin();
-    }
-  }*/
+    rgb_state |= DHT_ERR; 
+  }
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or
     could be turned on and off depending on temperature and humidity*/
@@ -269,7 +265,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   Serial.println(voltage_v);
   Serial.print("**************Soil moisture: "); 
   Serial.println((*tx).soilMoisture);
-  delay(30000);
+  vTaskDelay(30000);
 #endif
   (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
 

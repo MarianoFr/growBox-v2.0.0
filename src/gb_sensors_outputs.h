@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "globals.h"
 #include <BH1750.h>//Include the library for light sensorsetQuality
+#include "rgb_rst_butt.h"
 
 extern BH1750 lightMeter;
 /***********************************************************************/
