@@ -17,6 +17,8 @@
 #define MAX_IN_HUM  65/*considering the vegetative term*/
 #define MIN_IN_TEMP 26
 #define MIN_IN_HUM  63
+/*Global RGB state timer*/
+extern TimerHandle_t xRgbTimer;
 
 /*Declare the Firebase Data object in the global scope*/
 extern FirebaseData firebaseData2;
@@ -60,11 +62,10 @@ struct writeControl {
 extern float auxTemp;
 extern float auxHumidity;
 extern struct tm currentTime;
-extern bool rtc_adjusted;
-extern bool rtc_began;
 extern bool wrtWater;
 extern readControl Rx;
-extern writeControl Tx;
 extern int currentHour;
-extern int rgb_state;
+extern uint8_t rgb_state;
+extern uint8_t nmbr_outputs;
+extern uint32_t current;
 #endif

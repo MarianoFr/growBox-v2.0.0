@@ -68,7 +68,7 @@ public:
   bool setMTreg(byte MTreg);
   bool measurementReady(bool maxWait = false);
   float readLightLevel();
-
+  unsigned long lastReadTimestamp;
 private:
   byte BH1750_I2CADDR;
   byte BH1750_MTreg = (byte)BH1750_DEFAULT_MTREG;
@@ -78,7 +78,6 @@ private:
   const float BH1750_CONV_FACTOR = 1.2;
   Mode BH1750_MODE = UNCONFIGURED;
   TwoWire* I2C;
-  unsigned long lastReadTimestamp;
 };
 
 #endif

@@ -161,22 +161,18 @@ bool checkWiFiCredentials() {
 bool connectWifi() {
   // Let us connect to WiFi and FireBase
   WiFi.disconnect();
-  vTaskDelay(pdMS_TO_TICKS(100));  
+  vTaskDelay(pdMS_TO_TICKS(100));
+  WiFi.begin(ssidc, passwordc);
   while (WiFi.status() != WL_CONNECTED)
-  {
-    WiFi.begin(ssidc, passwordc);
+  {    
     debounceWiFiReset();
 #if SERIAL_DEBUG && WIFI_DEBUG        
-        Serial.println("connecting wifi");
+    Serial.println("connecting wifi");
 #endif
-    
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    rgb_state |= WIFI_DISC;
-    RGBalert();
+    rgb_state |= 1UL << WIFI_DISC;
   }
-  rgb_state &= !WIFI_DISC;
-  rgb_state |= WIFI_CONN;
-  RGBalert();  
+  rgb_state &= ~(1UL << WIFI_DISC);
+  rgb_state |= 1UL << WIFI_CONN;
   return true;
 }
 
@@ -197,7 +193,7 @@ void wiFiTasks( void * pvParameters ) {
     while ( gettingWiFiCredentials )
     {
       server.handleClient();//Checks for web server activity
-      if ( EEPROM.read( WIFI_CRED_FLAG ) == WITH_CREDENTIALS)
+      /* if ( EEPROM.read( WIFI_CRED_FLAG ) == WITH_CREDENTIALS)
       {
         WiFi.softAPdisconnect (true);
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -205,7 +201,7 @@ void wiFiTasks( void * pvParameters ) {
         vTaskDelay(pdMS_TO_TICKS(5));
         gettingWiFiCredentials = false;
         connectWifi();
-      }
+      } */
     }
 
     if ( (!gettingWiFiCredentials) && (WiFi.status() == WL_CONNECTED) ) 
@@ -214,6 +210,8 @@ void wiFiTasks( void * pvParameters ) {
       /*Perform all tasks requiring internet*/
       static bool stopWater2 = false;
       bool state1 = xQueueReceive(waterQueue, &stopWater2, 0);
+      rgb_state &= ~(1UL << WIFI_DISC);
+      rgb_state |= 1UL << WIFI_CONN;
       if (state1)
       {
       #if SERIAL_DEBUG && FIRE_DEBUG
@@ -230,11 +228,16 @@ void wiFiTasks( void * pvParameters ) {
         FirebaseJson dashBoard;
         write2FireBase( &tx, &dashBoard );
         Firebase.updateNode(firebaseData2, path + "/dashboard/", dashBoard);
+        if(!((rgb_state >> NO_USER) & 1U))
+        {
+          Firebase.setInt(firebaseData2, path + "/control/RGBState", rgb_state);
+        }    
       }
     }
 
     if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
     {
+      rgb_state |= 1UL << WIFI_DISC;
       connectWifi();
     }
     vTaskDelay(1);

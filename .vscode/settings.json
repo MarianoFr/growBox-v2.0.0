@@ -1,6 +1,11 @@
 {
     "files.associations": {
         "cstring": "cpp",
-        "typeinfo": "cpp"
-    }
+        "typeinfo": "cpp",
+        "cmath": "cpp",
+        "cstdlib": "cpp",
+        "fstream": "cpp"
+    },
+    "idf.portWin": "COM6",
+    "cmake.configureOnOpen": false
 }

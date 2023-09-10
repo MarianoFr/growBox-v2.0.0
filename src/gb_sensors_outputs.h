@@ -6,6 +6,8 @@
 #include <BH1750.h>//Include the library for light sensorsetQuality
 #include "rgb_rst_butt.h"
 
+#define MAX_TEMP_STEP 5
+
 extern BH1750 lightMeter;
 /***********************************************************************/
 // Reads both variables from the DHT and updates them in the Data Base,//

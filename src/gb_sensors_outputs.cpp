@@ -1,7 +1,9 @@
 #include "gb_sensors_outputs.h"
+#include "MeanFilterLib.h"
 
 /*Light sensor*/
 BH1750 lightMeter(0x23);
+MeanFilter<uint32_t> meanFilter(500);
 
 /***********************************************************************/
 // Reads both variables from the DHT and updates them in the Data Base,//
@@ -13,29 +15,35 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   // This portion of code uses a generic DHT from RandomNerdTutorials //
   /********************************************************************/
   static uint8_t dhtFails = 0;
-  if(!isnan(auxTemp) && !isnan(auxHumidity))
+  if(!isnan(auxTemp) && !isnan(auxHumidity)
+      && auxTemp <= 100 && auxTemp >= (-60)
+      && auxHumidity <= 100 && auxHumidity >= 0)
   {
-    (*tx).humidity = auxHumidity;
-    (*tx).temperature = auxTemp;
+    /* if(abs(auxTemp - (*tx).temperature) < MAX_TEMP_STEP)//filter big steps in temperature, 1.1C
+    { */
+      rgb_state &= ~(1UL << DHT_ERR);
+      (*tx).humidity = auxHumidity;
+      (*tx).temperature = auxTemp;
+      dhtFails = 0;
+   // }
   }
-  /* else
+  else
   {
-    rgb_state |= DHT_ERR;
     dhtFails++;
     if(dhtFails >= DHT_MAX_ERR)
     {
+      rgb_state |= 1UL << DHT_ERR;
       dhtFails = 0;
-      dht.begin();
     }
-  } */
+  }
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or
     could be turned on and off depending on temperature and humidity*/
 #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.print("**************Temperature: ");
+  /* Serial.print("**************Temperature: ");
   Serial.println((*tx).temperature);
   Serial.print("**************Humidity: ");
-  Serial.println((*tx).humidity);
+  Serial.println((*tx).humidity);*/
 #endif 
   if ( (!isnan((*tx).temperature)) && (!isnan((*tx).humidity)) ) 
   { //TODO alarm sensor not working
@@ -183,26 +191,40 @@ void ReadBH1750(struct writeControl *tx) {
   if (lightMeter.measurementReady())
   {
     float lux = lightMeter.readLightLevel();
-    if(lux>=0){
+    #if SERIAL_DEBUG && BH_DEBUG
+          Serial.print("****lus****");
+          Serial.println(lux);
+        #endif 
+    if(lux>0){
       (*tx).lux = lux;
-      tries=0;
-    } else
-      tries++;   
-  }
-  else
-  {    
-    tries++;
-    if(tries>4)
-    {
-      lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE);
-      tries=0;
     }
+    else if( lux<0 || (lux==0 && ((rgb_state >> BH_1750_ERR) & 1U)))     
+    {
+      rgb_state |= 1UL << BH_1750_ERR;      
+      tries++;
+      if(tries>4)
+      {
+        #if SERIAL_DEBUG && BH_DEBUG
+          Serial.print("****RetryingLux****");
+          Serial.println((*tx).lux);
+        #endif 
+        if(!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE))
+        {
+          rgb_state |= 1UL << BH_1750_ERR;
+        }
+        else
+          rgb_state &= ~(1UL << BH_1750_ERR);
+        tries=0;
+      }
+    }
+    else if(lux == 0)
+      (*tx).lux = lux;
   }
 #if SERIAL_DEBUG && BH_DEBUG
   Serial.print("**************Lux: ");
   Serial.println((*tx).lux);
 #endif 
-  vTaskDelay(500/portTICK_PERIOD_MS);
+  //vTaskDelay(500/portTICK_PERIOD_MS);
 }
 
 /********************************/
@@ -242,7 +264,7 @@ void PhotoPeriod( struct readControl *rx, struct writeControl *tx , int currentH
 
 }
 /*******************/
-/*Analog soil test */
+/*Analog soil read */
 /*******************/
 void analogSoilRead(struct readControl *rx, struct writeControl *tx)
 {
@@ -250,29 +272,56 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   static unsigned long wateringDelay = 3*60000; //En Milisegundos
   static unsigned long manualWateringStart = 0;
   /*get soil moisture reading*/
-  uint32_t voltage_mv = 0;//the bigger the reading, the drier the ground
-  float voltage_v = 0;
-  float slope = 2.48, intercept = -0.72;
-  for(int i = 0; i<10; i++){
-    voltage_mv+=analogReadMilliVolts(SOILPIN);
+  static uint32_t voltage_mv = 0;//the bigger the reading, the drier the ground
+  static float voltage_v = 0;
+  static float slope = 0, intercept = 0;
+  switch(nmbr_outputs)
+  {
+    case 0:
+      slope = 3.27868;
+      intercept = -1.00067;
+    break;
+    case 1:
+      slope = 3.23785;
+      intercept = -0.994669;
+    break;
+    case 2:
+      slope = 3.18617;
+      intercept = -0.984417;
+    break;
+    case 3:
+      slope = 3.1349;
+      intercept = -0.974165;
+    break;
+    case 4:
+      slope = 3.08405;
+      intercept = -0.963912;
+    break;
+    default:
+    break;
   }
-  voltage_mv/=10;
-  float aux = voltage_mv;
-  voltage_v = aux/1000;
-  //(*tx).soilMoisture = -0.067 * reading + 216.230;
+  voltage_mv = meanFilter.AddValue(analogReadMilliVolts(SOILPIN));
+  voltage_v = (float)voltage_mv/1000;
   (*tx).soilMoisture = ((1/voltage_v)*slope + intercept)*100;
 #if SERIAL_DEBUG && SOIL_DEBUG
   Serial.print("Voltage in mV:" );
   Serial.println(voltage_mv);
-  Serial.print("Voltage in mV:" );
-  Serial.println(aux);
   Serial.print("Voltage in V:" );
   Serial.println(voltage_v);
   Serial.print("**************Soil moisture: "); 
   Serial.println((*tx).soilMoisture);
-  vTaskDelay(30000);
+  //vTaskDelay(1000);
 #endif
-  (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
+  if((*tx).soilMoisture >= 150)
+  {
+    (*tx).soilMoisture = 0;
+    rgb_state |= 1UL << SOIL_ERR;
+  }
+  else
+  {
+    (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
+    rgb_state &= ~(1UL << SOIL_ERR);
+  }
 
   if ( (*rx).automaticWatering ) {
     /*Compare with set point*/
@@ -283,7 +332,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
         (*tx).soil = false;
       }
     }
-    if ( (*tx).soilMoisture > ((*rx).soilMoistureSet + 5) ) {
+    if ( (*tx).soilMoisture > ((*rx).soilMoistureSet) ) {
       if ((*tx).watering) {
         digitalWrite(W_VLV_PIN, HIGH);//cierra válvula
         (*tx).watering = false;
@@ -296,13 +345,13 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
     if ( !(*tx).watering ) {
       digitalWrite(W_VLV_PIN, LOW);//abre valvula
       (*tx).watering = true;
-      manualWateringStart = millis();
+      manualWateringStart = current;
 #if SERIAL_DEBUG && WATERING_DEBUG
       Serial.println("Watering");
 #endif
     }
     else {
-      if ( (unsigned long)(millis() - manualWateringStart) > wateringDelay ) {//cambiar el limete de contador
+      if ( (unsigned long)(current - manualWateringStart) > wateringDelay ) {//cambiar el limete de contador
         digitalWrite(W_VLV_PIN, HIGH);//cierra valvula
         (*tx).watering = false;
         (*rx).water = false;
