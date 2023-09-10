@@ -76,22 +76,11 @@ uint32_t espTagPeriod = 5*60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
 uint32_t previousDHTRead = 0;
-uint32_t dhtPeriod = 2000;
+uint32_t dhtPeriod = 2300;
 static writeControl tx;
 uint8_t retry = 0;
-/***********************************
- * Dht timed read
- ***********************************/
-/* static void ReadDht(TimerHandle_t xTimer) 
-{
-  dht.readDHT();
-  auxTemp = dht.getTemperature();
-  auxHumidity = dht.getHumidity();
-  #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.println(auxTemp);
-  Serial.println(auxHumidity);
-  #endif 
-}   */
+uint32_t v0 = 0;
+uint32_t v05 = 0;
 /***********************************
  * RTC alerts
  * input ERROR
@@ -240,27 +229,22 @@ void setup() {
   xRgbTimer = xTimerCreate( "Scan timer", pdMS_TO_TICKS(1000), pdTRUE, ( void * ) 0, RGBalert );
   configASSERT( xRgbTimer );
 	configASSERT( xTimerStart(xRgbTimer,pdMS_TO_TICKS(100)) );
-
-  /* xDhtTimer = xTimerCreate( "Dht timer", pdMS_TO_TICKS(2000), pdTRUE, ( void * ) 0, ReadDht );
-  configASSERT( xDhtTimer );
-	configASSERT( xTimerStart(xDhtTimer,pdMS_TO_TICKS(100)) ); */
- 
   
 #if SERIAL_DEBUG        
   Serial.begin(115200);
 #endif
   //disableCore0WDT();
   //disableLoopWDT();
-  vTaskDelay(100/portTICK_PERIOD_MS);
+  vTaskDelay(10/portTICK_PERIOD_MS);
   EEPROM.begin(512);
-  vTaskDelay(100/portTICK_PERIOD_MS);
+  vTaskDelay(10/portTICK_PERIOD_MS);
   dht.setDHTgpio((gpio_num_t)DHTPIN);
-  vTaskDelay(100/portTICK_PERIOD_MS);
+  vTaskDelay(10/portTICK_PERIOD_MS);
   if(!Wire.begin())
   {
     rgb_state |= 1UL << BH_1750_ERR;
   }
-  vTaskDelay(100/portTICK_PERIOD_MS);
+  vTaskDelay(10/portTICK_PERIOD_MS);
   uint8_t bh1750_tries = 0;
   while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5)) {
     rgb_state |= 1UL << BH_1750_ERR;    
@@ -269,7 +253,7 @@ void setup() {
     Serial.println("Error initialising BH1750");
     #endif
     bh1750_tries++;
-    vTaskDelay(100/portTICK_PERIOD_MS);
+    vTaskDelay(10/portTICK_PERIOD_MS);
   }
   if(bh1750_tries < 5) {
     #if SERIAL_DEBUG && BH_DEBUG
@@ -278,6 +262,10 @@ void setup() {
     rgb_state &= ~(1UL << BH_1750_ERR);
   }
   bh1750_tries=0;
+
+  v0 = EEPROM.readUInt( V0_SOIL );
+  v05 = EEPROM.readUInt( V05_SOIL );
+
   if (checkWiFiCredentials())
   {
     if (connectWifi())
@@ -419,7 +407,7 @@ void loop()
       else
       {
         rtc.setTime(now.tm_sec, now.tm_min, now.tm_hour, now.tm_mday, now.tm_mon + 1, now.tm_year + 1900);
-        vTaskDelay(100/portTICK_PERIOD_MS);
+        vTaskDelay(10/portTICK_PERIOD_MS);
         rgb_state &= ~(1UL << RTC_ERR);
       #if SERIAL_DEBUG && RTC_DEBUG
         Serial.println("¡¡¡¡¡RTC adjusted!!!!!");
@@ -450,10 +438,14 @@ void loop()
 
     if ((uint32_t)(current - previousDHTRead) > dhtPeriod)
     {
-      dht.readDHT();
-      auxTemp = dht.getTemperature();
-      auxHumidity = dht.getHumidity(),
-      previousDHTRead = current;
+      int8_t err = 0;
+      err = dht.readDHT();
+      if(err == DHT_OK)
+      {
+        auxTemp = dht.getTemperature();
+        auxHumidity = dht.getHumidity(),
+        previousDHTRead = current;
+      }
       #if SERIAL_DEBUG && DHT_DEBUG
       Serial.println(auxTemp);
       Serial.println(auxHumidity);

@@ -1,6 +1,8 @@
 #include "gb_sensors_outputs.h"
 #include "MeanFilterLib.h"
 
+#define DELTA_SOIL_V 150
+
 /*Light sensor*/
 BH1750 lightMeter(0x23);
 MeanFilter<uint32_t> meanFilter(500);
@@ -275,33 +277,25 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   static uint32_t voltage_mv = 0;//the bigger the reading, the drier the ground
   static float voltage_v = 0;
   static float slope = 0, intercept = 0;
-  switch(nmbr_outputs)
-  {
-    case 0:
-      slope = 3.27868;
-      intercept = -1.00067;
-    break;
-    case 1:
-      slope = 3.23785;
-      intercept = -0.994669;
-    break;
-    case 2:
-      slope = 3.18617;
-      intercept = -0.984417;
-    break;
-    case 3:
-      slope = 3.1349;
-      intercept = -0.974165;
-    break;
-    case 4:
-      slope = 3.08405;
-      intercept = -0.963912;
-    break;
-    default:
-    break;
-  }
+  
+  slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
+  intercept = 0.5*(1/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
+
   voltage_mv = meanFilter.AddValue(analogReadMilliVolts(SOILPIN));
   voltage_v = (float)voltage_mv/1000;
+
+  if(voltage_mv > v0 and voltage_mv < v0+DELTA_SOIL_V)
+  {
+    v0 = voltage_mv;
+    EEPROM.writeUInt(V0_SOIL, v0);
+    EEPROM.commit();
+  }
+  if(voltage_mv < v05 and voltage_mv > v05-DELTA_SOIL_V)
+  {
+    v05 = voltage_mv;
+    EEPROM.writeUInt(V05_SOIL, v05);
+    EEPROM.commit();
+  }
   (*tx).soilMoisture = ((1/voltage_v)*slope + intercept)*100;
 #if SERIAL_DEBUG && SOIL_DEBUG
   Serial.print("Voltage in mV:" );

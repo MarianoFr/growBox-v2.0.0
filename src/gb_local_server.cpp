@@ -193,15 +193,6 @@ void wiFiTasks( void * pvParameters ) {
     while ( gettingWiFiCredentials )
     {
       server.handleClient();//Checks for web server activity
-      /* if ( EEPROM.read( WIFI_CRED_FLAG ) == WITH_CREDENTIALS)
-      {
-        WiFi.softAPdisconnect (true);
-        vTaskDelay(pdMS_TO_TICKS(5));
-        checkWiFiCredentials();
-        vTaskDelay(pdMS_TO_TICKS(5));
-        gettingWiFiCredentials = false;
-        connectWifi();
-      } */
     }
 
     if ( (!gettingWiFiCredentials) && (WiFi.status() == WL_CONNECTED) ) 

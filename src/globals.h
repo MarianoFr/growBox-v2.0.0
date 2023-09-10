@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include "fb_mgmt.h"
 
+#define V0_SOIL 101
+#define V05_SOIL 151
+
 /*PinOut definition*/
 #define PIN_RED   18
 #define PIN_GREEN 5
@@ -19,7 +22,9 @@
 #define MIN_IN_HUM  63
 /*Global RGB state timer*/
 extern TimerHandle_t xRgbTimer;
-
+/*Auto soil calib points*/
+extern uint32_t v0;
+extern uint32_t v05;
 /*Declare the Firebase Data object in the global scope*/
 extern FirebaseData firebaseData2;
 extern FirebaseData firebaseData1;
