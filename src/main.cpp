@@ -76,7 +76,7 @@ uint32_t espTagPeriod = 5*60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
 uint32_t previousDHTRead = 0;
-uint32_t dhtPeriod = 2300;
+uint32_t dhtPeriod = 2000;
 static writeControl tx;
 uint8_t retry = 0;
 uint32_t v0 = 0;
@@ -443,12 +443,13 @@ void loop()
       if(err == DHT_OK)
       {
         auxTemp = dht.getTemperature();
-        auxHumidity = dht.getHumidity(),
-        previousDHTRead = current;
+        auxHumidity = dht.getHumidity();  
       }
+      previousDHTRead = current;
       #if SERIAL_DEBUG && DHT_DEBUG
       Serial.println(auxTemp);
       Serial.println(auxHumidity);
+      Serial.println(err);
       #endif
     }    
   }  
