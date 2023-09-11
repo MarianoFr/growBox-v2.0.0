@@ -73,6 +73,15 @@ void DHT::errorHandler(int response)
     }
 }
 
+// == Wake up DHT ===============================================
+
+void DHT::wake( )
+{
+   gpio_set_direction(DHTgpio, GPIO_MODE_OUTPUT);
+   // pull down for 3 ms for a smooth and nice wake up
+   gpio_set_level(DHTgpio, 0);
+}
+
 /*-------------------------------------------------------------------------------
 ;
 ;	get next state
@@ -83,8 +92,7 @@ void DHT::errorHandler(int response)
 ;--------------------------------------------------------------------------------*/
 
 int DHT::getSignalLevel(int usTimeOut, bool state)
-{
-
+{   
     int uSec = 0;
     //portMUX_TYPE myMutex = portMUX_INITIALIZER_UNLOCKED;
     //taskENTER_CRITICAL(&myMutex);

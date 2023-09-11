@@ -16,6 +16,7 @@ class DHT
 
 	void setDHTgpio(gpio_num_t gpio);
 	void errorHandler(int response);
+   void wake();
 	int readDHT();
 	float getHumidity();
 	float getTemperature();

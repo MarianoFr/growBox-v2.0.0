@@ -225,8 +225,7 @@ void ReadBH1750(struct writeControl *tx) {
 #if SERIAL_DEBUG && BH_DEBUG
   Serial.print("**************Lux: ");
   Serial.println((*tx).lux);
-#endif 
-  //vTaskDelay(500/portTICK_PERIOD_MS);
+#endif
 }
 
 /********************************/
@@ -304,7 +303,6 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   Serial.println(voltage_v);
   Serial.print("**************Soil moisture: "); 
   Serial.println((*tx).soilMoisture);
-  //vTaskDelay(1000);
 #endif
   if((*tx).soilMoisture >= 150)
   {

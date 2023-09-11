@@ -9,7 +9,7 @@
 //#include <esp_task_wdt.h>
 #include "WiFi.h"
 #include <OneWire.h>
-#include "DHT.hpp"//DHT ambient humidity and temperature sensor
+//#include "DHT.hpp"//DHT ambient humidity and temperature sensor
 #include <time.h>//Time library, getLocalTime
 #include <Wire.h>
 #include <ESP32Time.h>
@@ -31,6 +31,13 @@ TaskHandle_t wiFiHandler;//Task to handle wifi in core 0
 #define WITH_CREDENTIALS 1
 #define SSID_STORING_ADD 1
 #define PASS_STORING_ADD 51
+
+#define DHT_SLEEP         0
+#define DHT_WAKING        1 
+#define DHT_SENDING       3
+#define DHT_WAIT_HIGH     4
+#define DHT_WAIT_LOW      5
+#define DHT_END_TX        6
 
 /*
    Mac path. When logging a user to the app for the first time, the movile
@@ -55,8 +62,9 @@ const int   daylightOffset_sec = 0;
   DHT_Unified dht(DHTPIN, DHTTYPE);
   Initiates generic DHT sensor*/
 /*DHT dht(DHTPIN, DHTTYPE); */
-DHT dht;
+//DHT dht;
 TimerHandle_t xRgbTimer;
+TimerHandle_t xDhtTimer;
 /* RTC configuration and variables */
 ESP32Time rtc;
 bool rtc_calibrated = false;
@@ -66,6 +74,7 @@ readControl Rx;
 int currentHour = 0;
 QueueHandle_t writeQueue;
 QueueHandle_t waterQueue;
+//QueueHandle_t dhtQueue;
 float auxTemp=0;
 float auxHumidity=0;
 uint8_t rgb_state = 1;
@@ -81,6 +90,116 @@ static writeControl tx;
 uint8_t retry = 0;
 uint32_t v0 = 0;
 uint32_t v05 = 0;
+volatile uint8_t dht_state = DHT_SLEEP;
+volatile uint64_t dht_flank_start = 0;
+volatile uint64_t dht_flank_end = 0;
+uint8_t dhtData[5];
+uint8_t dht_byteInx = 0;
+uint8_t dht_bitInx = 7;
+bool dht_ready = false;
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+/*get DHT level within irq*/
+void IRAM_ATTR DHT_ISR() {
+   portENTER_CRITICAL_ISR(&mux);
+   switch(dht_state)
+   {
+      case DHT_WAIT_HIGH:
+         dht_flank_start = esp_timer_get_time();
+         detachInterrupt((uint8_t)DHTPIN);
+         attachInterrupt((uint8_t)DHTPIN, DHT_ISR, FALLING);
+         dht_state = DHT_WAIT_LOW;    
+      break;
+      case DHT_WAIT_LOW:
+         dht_flank_end = esp_timer_get_time();
+         detachInterrupt((uint8_t)DHTPIN);
+         attachInterrupt((uint8_t)DHTPIN, DHT_ISR, FALLING);
+         dht_state = DHT_WAIT_HIGH;
+         if(dht_flank_end-dht_flank_start > 40)
+            dhtData[dht_byteInx] |= (1 << dht_bitInx);
+         if (dht_bitInx == 0 && dht_byteInx == 5)
+         {
+            detachInterrupt((uint8_t)DHTPIN);
+            dht_state = DHT_SLEEP;
+            dht_ready = true;
+         }
+         if (dht_bitInx == 0)
+         {
+            dht_bitInx = 7;
+            ++dht_byteInx;
+         }
+         else
+            dht_bitInx--;         
+      break;
+      default:
+         break;
+   }   
+   portEXIT_CRITICAL_ISR(&mux);
+}
+/*Parse dht data*/
+int8_t parseDht()
+{
+   auxHumidity = dhtData[0];
+   auxHumidity *= 0x100; // >> 8
+   auxHumidity += dhtData[1];
+   auxHumidity /= 10; // get the decimal
+
+   // == get temp from Data[2] and Data[3]
+
+   auxTemp = dhtData[2] & 0x7F;
+   auxTemp *= 0x100; // >> 8
+   auxTemp += dhtData[3];
+   auxTemp /= 10;
+
+   if (dhtData[2] & 0x80) // negative temp, brrr it's freezing
+      auxTemp *= -1;
+
+   // == verify if checksum is ok ===========================================
+   // Checksum is the sum of Data 8 bits masked out 0xFF
+
+   if (dhtData[4] == ((dhtData[0] + dhtData[1] + dhtData[2] + dhtData[3]) & 0xFF))
+      return DHT_OK;
+
+   else
+      return DHT_CHECKSUM_ERROR;
+}
+/***********************************
+ * DHT timer start
+ ***********************************/
+void dhtCheck( TimerHandle_t xTimer )
+{
+   //dht.setDHTgpio((gpio_num_t)DHTPIN);
+   switch(dht_state)
+   {
+      case DHT_SLEEP:
+         for (int k = 0; k < 5; k++)
+            dhtData[k] = 0;
+         gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_OUTPUT);
+         gpio_set_level((gpio_num_t)DHTPIN, 0);
+         portENTER_CRITICAL_ISR(&mux);
+         dht_state = DHT_WAKING;
+         portEXIT_CRITICAL_ISR(&mux);
+         configASSERT(xTimerChangePeriod(xDhtTimer, DHT_WAKE_ORDER_PERIOD/portTICK_PERIOD_MS, 100/portTICK_PERIOD_MS));
+      #if SERIAL_DEBUG && DHT_DEBUG
+         Serial.println("Sending DHT wake order");
+      #endif
+         break;
+      case DHT_WAKING:
+         configASSERT(xTimerStop(xDhtTimer, 100/portTICK_PERIOD_MS));
+         gpio_set_level((gpio_num_t)DHTPIN, 1);
+         gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_INPUT);
+         attachInterrupt((uint8_t)DHTPIN, DHT_ISR, RISING);
+         portENTER_CRITICAL_ISR(&mux);
+         dht_state = DHT_WAIT_HIGH;
+         portEXIT_CRITICAL_ISR(&mux);
+      #if SERIAL_DEBUG && DHT_DEBUG
+         Serial.println("Reading DHT wake response");         
+      #endif
+         break;      
+      default:
+         break;
+   }
+}
+
 /***********************************
  * RTC alerts
  * input ERROR
@@ -104,7 +223,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> WIFI_CONN) & 1U)
     {
@@ -116,7 +234,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> NO_WIFI_CRED) & 1U)
     {
@@ -128,7 +245,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> NO_USER) & 1U)
     {
@@ -140,7 +256,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> DHT_ERR) & 1U)
     {
@@ -152,7 +267,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> RTC_ERR) & 1U)
     {
@@ -164,7 +278,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> SOIL_ERR) & 1U)
     {        
@@ -176,7 +289,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     if((rgb_state >> BH_1750_ERR) & 1U)
     {
@@ -188,7 +300,6 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
       analogWrite(PIN_RED, red);
-      vTaskDelay(pdMS_TO_TICKS(500));
     }
     
     return;
@@ -226,25 +337,25 @@ void setup() {
 
   rgb_state |= 1UL << RTC_ERR;
 
-  xRgbTimer = xTimerCreate( "Scan timer", pdMS_TO_TICKS(1000), pdTRUE, ( void * ) 0, RGBalert );
+  xRgbTimer = xTimerCreate( "RGB timer", 2000/portTICK_PERIOD_MS, pdTRUE, ( void * ) 0, RGBalert );
   configASSERT( xRgbTimer );
-	configASSERT( xTimerStart(xRgbTimer,pdMS_TO_TICKS(100)) );
+  configASSERT( xTimerStart(xRgbTimer,100/portTICK_PERIOD_MS) );
+
+
+  xDhtTimer = xTimerCreate( "DHT timer", DHT_SENSE_PERIOD/portTICK_PERIOD_MS, pdTRUE, ( void * ) 0, dhtCheck );
+  configASSERT( xDhtTimer );
+  configASSERT( xTimerStart(xDhtTimer,1000/portTICK_PERIOD_MS) );
   
 #if SERIAL_DEBUG        
   Serial.begin(115200);
 #endif
   //disableCore0WDT();
   //disableLoopWDT();
-  vTaskDelay(10/portTICK_PERIOD_MS);
   EEPROM.begin(512);
-  vTaskDelay(10/portTICK_PERIOD_MS);
-  dht.setDHTgpio((gpio_num_t)DHTPIN);
-  vTaskDelay(10/portTICK_PERIOD_MS);
   if(!Wire.begin())
   {
     rgb_state |= 1UL << BH_1750_ERR;
   }
-  vTaskDelay(10/portTICK_PERIOD_MS);
   uint8_t bh1750_tries = 0;
   while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5)) {
     rgb_state |= 1UL << BH_1750_ERR;    
@@ -253,7 +364,6 @@ void setup() {
     Serial.println("Error initialising BH1750");
     #endif
     bh1750_tries++;
-    vTaskDelay(10/portTICK_PERIOD_MS);
   }
   if(bh1750_tries < 5) {
     #if SERIAL_DEBUG && BH_DEBUG
@@ -310,7 +420,6 @@ void setup() {
       Serial.println("Adjusting");
 #endif
       rtc.setTime(currentTime.tm_sec, currentTime.tm_min, currentTime.tm_hour, currentTime.tm_mday, currentTime.tm_mon + 1, currentTime.tm_year + 1900);
-      vTaskDelay(10/portTICK_PERIOD_MS);
       tm now = rtc.getTimeStruct();
       char buf2[20];
       strftime(buf2, 20,"%Y-%m-%d %X",&now); 
@@ -348,6 +457,7 @@ void setup() {
 
   writeQueue = xQueueCreate(1, sizeof(writeControl));
   waterQueue = xQueueCreate(1, sizeof(bool));
+  //dhtQueue   = xQueueCreate(1, sizeof(dhtData));
 
   xTaskCreatePinnedToCore(
     wiFiTasks, /* Function to implement the task */
@@ -407,7 +517,6 @@ void loop()
       else
       {
         rtc.setTime(now.tm_sec, now.tm_min, now.tm_hour, now.tm_mday, now.tm_mon + 1, now.tm_year + 1900);
-        vTaskDelay(10/portTICK_PERIOD_MS);
         rgb_state &= ~(1UL << RTC_ERR);
       #if SERIAL_DEBUG && RTC_DEBUG
         Serial.println("¡¡¡¡¡RTC adjusted!!!!!");
@@ -435,8 +544,21 @@ void loop()
     analogSoilRead ( &Rx, &tx );    
     TemperatureHumidityHandling ( &Rx, &tx, currentHour );    
     PhotoPeriod ( &Rx, &tx, currentHour );
+    portENTER_CRITICAL_ISR(&mux);
+    if(dht_ready)
+    {
+      int8_t err = parseDht();
+      #if SERIAL_DEBUG && DHT_DEBUG
+      Serial.println(auxTemp);
+      Serial.println(auxHumidity);
+      Serial.println(err);
+      #endif
+      configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD/portTICK_PERIOD_MS, 100/portTICK_PERIOD_MS));
+      dht_ready = false;      
+    }
+    portEXIT_CRITICAL_ISR(&mux);
 
-    if ((uint32_t)(current - previousDHTRead) > dhtPeriod)
+    /* if ((uint32_t)(current - previousDHTRead) > dhtPeriod)
     {
       int8_t err = 0;
       err = dht.readDHT();
@@ -451,6 +573,6 @@ void loop()
       Serial.println(auxHumidity);
       Serial.println(err);
       #endif
-    }    
+    }  */   
   }  
 }

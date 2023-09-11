@@ -161,7 +161,6 @@ bool checkWiFiCredentials() {
 bool connectWifi() {
   // Let us connect to WiFi and FireBase
   WiFi.disconnect();
-  vTaskDelay(pdMS_TO_TICKS(100));
   WiFi.begin(ssidc, passwordc);
   while (WiFi.status() != WL_CONNECTED)
   {    
@@ -231,6 +230,6 @@ void wiFiTasks( void * pvParameters ) {
       rgb_state |= 1UL << WIFI_DISC;
       connectWifi();
     }
-    vTaskDelay(1);
+    yield();
   }
 }
