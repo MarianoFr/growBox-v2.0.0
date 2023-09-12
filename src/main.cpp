@@ -170,6 +170,7 @@ int8_t parseDht()
  ***********************************/
 void dhtCheck( TimerHandle_t xTimer )
 {
+  static gpio_num_t DHTgpio = GPIO_NUM_19;
   esp_err_t ert;
    //dht.setDHTgpio((gpio_num_t)DHTPIN);
    switch(dht_state)
@@ -177,8 +178,8 @@ void dhtCheck( TimerHandle_t xTimer )
       case DHT_SLEEP:
          for (int k = 0; k < 5; k++)
             dhtData[k] = 0; 
-         gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_OUTPUT);
-         gpio_set_level((gpio_num_t)DHTPIN, 0);
+         gpio_set_direction(DHTgpio, GPIO_MODE_OUTPUT);
+         gpio_set_level(DHTgpio, 0);
          portENTER_CRITICAL_ISR(&mux);
          dht_state = DHT_WAKING;
          portEXIT_CRITICAL_ISR(&mux);
