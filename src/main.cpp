@@ -211,102 +211,126 @@ void dhtCheck( TimerHandle_t xTimer )
  ***********************************/
 static void RGBalert(TimerHandle_t xTimer)
 {
-    static uint8_t green = 100, blue = 0, red = 120;
-    #if SERIAL_DEBUG && RGB_DEBUG
-      Serial.println(rgb_state);
-    #endif
-    char aux_2[100];
-    char path_char[100];
-    if((rgb_state >> WIFI_DISC) & 1U)
-    {
-        green = 0;red = 0; blue = 0;        
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Negro");
-        Serial.println("WIFI_DISC");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> WIFI_CONN) & 1U)
-    {
-        green = 0;red = 35; blue = 255; 
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Violeta");
-        Serial.println("WIFI_CONN");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> NO_WIFI_CRED) & 1U)
-    {
-        green = 0;red = 255; blue = 0;
-    #if SERIAL_DEBUG && RGB_DEBUG    
-        Serial.println("Rojo");
-        Serial.println("NO_WIFI_CRED");//Verde a tope
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> NO_USER) & 1U)
-    {
-        green = 255;red = 0; blue = 0;
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Verde");
-        Serial.println("NO_USER");//
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> DHT_ERR) & 1U)
-    {
-        green = 0;red = 0; blue = 255;
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Azul");
-        Serial.println("DHT_ERR");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> RTC_ERR) & 1U)
-    {
-        green = 255;red = 255; blue = 50;
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Amarillo");
-        Serial.println("RTC_ERR");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> SOIL_ERR) & 1U)
-    {        
-        green = 100;red = 120; blue = 255;
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Blanco");
-        Serial.println("SOIL_ERR");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    if((rgb_state >> BH_1750_ERR) & 1U)
-    {
-        green = 0;red = 150; blue = 255;
-    #if SERIAL_DEBUG && RGB_DEBUG
-        Serial.println("Rosa");
-        Serial.println("BH_1750_ERR");
-    #endif
-      analogWrite(PIN_GREEN, green);
-      analogWrite(PIN_BLUE, blue);
-      analogWrite(PIN_RED, red);
-    }
-    
-    return;
+  static uint8_t green = 100, blue = 0, red = 120;
+  #if SERIAL_DEBUG && RGB_DEBUG
+    Serial.println(rgb_state);
+  #endif
+  char aux_2[100];
+  char path_char[100];
+  static uint8_t try_out = 0;
+  switch(try_out)
+  {
+    case WIFI_DISC:
+      if((rgb_state >> WIFI_DISC) & 1U)
+      {
+          green = 0;red = 0; blue = 0;        
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Negro");
+          Serial.println("WIFI_DISC");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case WIFI_CONN:
+      if((rgb_state >> WIFI_CONN) & 1U)
+      {
+          green = 0;red = 35; blue = 255; 
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Violeta");
+          Serial.println("WIFI_CONN");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case NO_WIFI_CRED:
+      if((rgb_state >> NO_WIFI_CRED) & 1U)
+      {
+          green = 0;red = 255; blue = 0;
+      #if SERIAL_DEBUG && RGB_DEBUG    
+          Serial.println("Rojo");
+          Serial.println("NO_WIFI_CRED");//Verde a tope
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case NO_USER:
+      if((rgb_state >> NO_USER) & 1U)
+      {
+          green = 255;red = 0; blue = 0;
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Verde");
+          Serial.println("NO_USER");//
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case DHT_ERR:
+      if((rgb_state >> DHT_ERR) & 1U)
+      {
+          green = 0;red = 0; blue = 255;
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Azul");
+          Serial.println("DHT_ERR");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case RTC_ERR:
+      if((rgb_state >> RTC_ERR) & 1U)
+      {
+          green = 255;red = 255; blue = 50;
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Amarillo");
+          Serial.println("RTC_ERR");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case SOIL_ERR:
+      if((rgb_state >> SOIL_ERR) & 1U)
+      {        
+          green = 100;red = 120; blue = 255;
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Blanco");
+          Serial.println("SOIL_ERR");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    case BH_1750_ERR:
+      if((rgb_state >> BH_1750_ERR) & 1U)
+      {
+          green = 0;red = 150; blue = 255;
+      #if SERIAL_DEBUG && RGB_DEBUG
+          Serial.println("Rosa");
+          Serial.println("BH_1750_ERR");
+      #endif
+        analogWrite(PIN_GREEN, green);
+        analogWrite(PIN_BLUE, blue);
+        analogWrite(PIN_RED, red);
+      }
+    break;
+    default:
+    break;
+  }    
+  try_out++;
+  if(try_out > 7)
+    try_out = 0;
+  return;
 }
 
  /***********************************
