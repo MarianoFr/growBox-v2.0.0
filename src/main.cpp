@@ -177,14 +177,8 @@ void dhtCheck( TimerHandle_t xTimer )
       case DHT_SLEEP:
          for (int k = 0; k < 5; k++)
             dhtData[k] = 0; 
-         pinMode(DHTPIN, OUTPUT);
-         digitalWrite(DHTPIN, LOW);
-         digitalWrite(DHTPIN, LOW);
-         digitalWrite(DHTPIN, LOW);
-         pinMode(DHTPIN, INPUT);
-         if(digitalRead(DHTPIN)==0)
-          Serial.println("Coreeeee");
-
+         gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_OUTPUT);
+         gpio_set_level((gpio_num_t)DHTPIN, 0);
          portENTER_CRITICAL_ISR(&mux);
          dht_state = DHT_WAKING;
          portEXIT_CRITICAL_ISR(&mux);
