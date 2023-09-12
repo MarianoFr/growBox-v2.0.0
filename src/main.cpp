@@ -20,6 +20,7 @@
 #include "globals.h"
 #include "fb_mgmt.h"
 #include "gb_sensors_outputs.h"
+#include "driver/gpio.h"
 
 TaskHandle_t wiFiHandler;//Task to handle wifi in core 0
 
@@ -97,10 +98,12 @@ uint8_t dhtData[5];
 uint8_t dht_byteInx = 0;
 uint8_t dht_bitInx = 7;
 bool dht_ready = false;
+bool passed = false;
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 /*get DHT level within irq*/
-void IRAM_ATTR DHT_ISR() {
+void IRAM_ATTR DHT_ISR() {   
    portENTER_CRITICAL_ISR(&mux);
+   passed = true;
    switch(dht_state)
    {
       case DHT_WAIT_HIGH:
@@ -167,14 +170,21 @@ int8_t parseDht()
  ***********************************/
 void dhtCheck( TimerHandle_t xTimer )
 {
+  esp_err_t ert;
    //dht.setDHTgpio((gpio_num_t)DHTPIN);
    switch(dht_state)
    {
       case DHT_SLEEP:
          for (int k = 0; k < 5; k++)
-            dhtData[k] = 0;
-         gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_OUTPUT);
-         gpio_set_level((gpio_num_t)DHTPIN, 0);
+            dhtData[k] = 0; 
+         pinMode(DHTPIN, OUTPUT);
+         digitalWrite(DHTPIN, LOW);
+         digitalWrite(DHTPIN, LOW);
+         digitalWrite(DHTPIN, LOW);
+         pinMode(DHTPIN, INPUT);
+         if(digitalRead(DHTPIN)==0)
+          Serial.println("Coreeeee");
+
          portENTER_CRITICAL_ISR(&mux);
          dht_state = DHT_WAKING;
          portEXIT_CRITICAL_ISR(&mux);
@@ -334,7 +344,7 @@ void setup() {
   digitalWrite( LIGHTS, HIGH );
   pinMode(WIFI_RESET, INPUT);
   digitalWrite(WIFI_RESET, LOW);
-
+  gpio_set_direction((gpio_num_t)DHTPIN, GPIO_MODE_OUTPUT);
   rgb_state |= 1UL << RTC_ERR;
 
   xRgbTimer = xTimerCreate( "RGB timer", 2000/portTICK_PERIOD_MS, pdTRUE, ( void * ) 0, RGBalert );
@@ -556,8 +566,10 @@ void loop()
       configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD/portTICK_PERIOD_MS, 100/portTICK_PERIOD_MS));
       dht_ready = false;      
     }
+    if(passed)
+      Serial.println("Entered");
     portEXIT_CRITICAL_ISR(&mux);
-
+    
     /* if ((uint32_t)(current - previousDHTRead) > dhtPeriod)
     {
       int8_t err = 0;
