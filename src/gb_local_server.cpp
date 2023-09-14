@@ -159,16 +159,20 @@ bool checkWiFiCredentials() {
 // In charge of connecting to WiFi LAN and FireBase Data Base //
 /**************************************************************/
 bool connectWifi() {
-  // Let us connect to WiFi and FireBase
-  WiFi.disconnect();
-  WiFi.begin(ssidc, passwordc);
-  while (WiFi.status() != WL_CONNECTED)
+  WiFi.mode(WIFI_STA);
+  uint8_t res = WiFi.begin(ssidc, passwordc);
+  while (WiFi.status() != WL_CONNECTED && res != WL_CONNECT_FAILED)
   {    
     debounceWiFiReset();
 #if SERIAL_DEBUG && WIFI_DEBUG        
     Serial.println("connecting wifi");
 #endif
     rgb_state |= 1UL << WIFI_DISC;
+  }
+  if(res == WL_CONNECT_FAILED)
+  {
+   rgb_state |= (1UL << WIFI_DISC);
+   return false;
   }
   rgb_state &= ~(1UL << WIFI_DISC);
   rgb_state |= 1UL << WIFI_CONN;
@@ -225,11 +229,11 @@ void wiFiTasks( void * pvParameters ) {
       }
     }
 
-    if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
+    /* if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
     {
       rgb_state |= 1UL << WIFI_DISC;
       connectWifi();
-    }
+    } */
     yield();
   }
 }

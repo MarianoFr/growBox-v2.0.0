@@ -21,12 +21,7 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   {
       return;
   }
-  else
-  {
-      (*tx).humidity = auxHumidity;
-      (*tx).temperature = auxTemp;
-      dhtFails = 0;
-  }
+  
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or
     could be turned on and off depending on temperature and humidity*/

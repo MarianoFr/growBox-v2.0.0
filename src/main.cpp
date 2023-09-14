@@ -105,35 +105,7 @@ void IRAM_ATTR DHT_ISR()
   {
     dht_ready = true;
     detachInterrupt((uint8_t)DHTPIN);
-  }
-  /* switch(dht_state)
-  {
-     case DHT_WAIT_HIGH:
-        dht_flank_start = esp_timer_get_time();
-        dht_state = DHT_WAIT_LOW;
-     break;
-     case DHT_WAIT_LOW:
-        dht_flank_end = esp_timer_get_time();
-        dht_state = DHT_WAIT_HIGH;
-        if(dht_flank_end-dht_flank_start > 40)
-           dhtData[dht_byteInx] |= (1 << dht_bitInx);
-        if ((dht_bitInx == 0 && dht_byteInx == 4))
-        {
-           detachInterrupt((uint8_t)DHTPIN);
-           dht_state = DHT_SLEEP;
-           dht_ready = true;
-        }
-        if (dht_bitInx == 0)
-        {
-           dht_bitInx = 7;
-           ++dht_byteInx;
-        }
-        else
-           dht_bitInx--;
-     break;
-     default:
-        break;
-  } */
+  }  
 }
 /*Parse dht data*/
 int8_t parseDht()
@@ -182,11 +154,20 @@ int8_t parseDht()
 void dhtCheck(TimerHandle_t xTimer)
 {
   static gpio_num_t DHTgpio = DHTPIN;
-  esp_err_t ert;
-  Serial.println("Triggered");
+  esp_err_t ert;  
   switch (dht_state)
-  {
+  {      
   case DHT_SLEEP:
+  if(!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
+  {
+      WiFi.disconnect();
+      ert = esp_wifi_stop();
+      Serial.println(ert);
+      vTaskDelay(1000/portTICK_PERIOD_MS);
+  }
+    
+    attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
+    passed = 0;
     for (uint8_t k = 0; k < 100; k++)
     {
       dht_times[k]=0;
@@ -367,7 +348,6 @@ void wiFiTasks(void *pvParameters);
 /*****************************************************************************/
 void setup()
 {
-
   String gbs = "growboxs/";
   char aux_1[100];
   char mac_char[100];
@@ -387,13 +367,14 @@ void setup()
   digitalWrite(WIFI_RESET, LOW);
   rgb_state |= 1UL << RTC_ERR;
 
-  xRgbTimer = xTimerCreate("RGB timer", 2000 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
+  xRgbTimer = xTimerCreate("RGB timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
   configASSERT(xRgbTimer);
-  configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));
+  configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));  
 
-  xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
-  configASSERT(xDhtTimer);
-  configASSERT(xTimerStart(xDhtTimer, 10 / portTICK_PERIOD_MS));
+  //DHT works only when we have wifi connection, so as to not stop the server qhen receiving ssid and password
+   xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
+   configASSERT(xDhtTimer);
+   configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
   
 #if SERIAL_DEBUG
   Serial.begin(115200);
@@ -430,12 +411,12 @@ void setup()
   if (checkWiFiCredentials())
   {
     if (connectWifi())
-    {
+    {      
       /*Setup Firebase credentials in setup(), that is c onnect to FireBase.
         Two parameters are necessary: the firebase_url and the firebase_API_key*/
       rgb_state |= 1UL << NO_USER;
       Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-      Firebase.reconnectWiFi(true);
+      Firebase.reconnectWiFi(false);
       /*Set database read timeout to 1 minute (max 15 minutes)*/
       Firebase.setReadTimeout(firebaseData2, 1000 * 60);
       /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
@@ -617,7 +598,12 @@ void loop()
   if (dht_ready)
   {
     int8_t err = parseDht();
-#if SERIAL_DEBUG && DHT_DEBUG
+    if(err == DHT_OK)
+      {
+            tx.humidity = auxHumidity;
+            tx.temperature = auxTemp;
+      }
+   #if SERIAL_DEBUG && DHT_DEBUG
     /* for(uint8_t k = 0; k < 84; k++)
     {
       Serial.print(dht_times[k]);
@@ -629,7 +615,6 @@ void loop()
       Serial.print(dht_times[k+1]-dht_times[k]);
       Serial.print("-");
     } */
-    Serial.println("--------------------");
     Serial.println(auxTemp);
     Serial.println(auxHumidity);
     Serial.println(err);    
@@ -638,7 +623,7 @@ void loop()
     configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
     dht_ready = false;
     passed = 0;
-    dht_state = DHT_SLEEP;    
-    attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
+    dht_state = DHT_SLEEP;
+    connectWifi();
   }
 }
