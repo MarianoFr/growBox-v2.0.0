@@ -85,6 +85,7 @@ uint32_t writePeriod = 3000;
 uint32_t espTagPeriod = 5 * 60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
+uint32_t previousDHT = 0;
 static writeControl tx;
 uint8_t retry = 0;
 uint32_t v0 = 0;
@@ -597,6 +598,7 @@ void loop()
   }
   if (dht_ready)
   {
+   previousDHT = current;
     int8_t err = parseDht();
     if(err == DHT_OK)
       {
@@ -625,5 +627,12 @@ void loop()
     passed = 0;
     dht_state = DHT_SLEEP;
     connectWifi();
+  }
+  if ((uint32_t)(current - previousDHT) > 1.5*DHT_SENSE_PERIOD)
+  {
+      configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
+    dht_ready = false;
+    passed = 0;
+    dht_state = DHT_SLEEP;
   }
 }
