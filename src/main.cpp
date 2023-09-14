@@ -100,28 +100,28 @@ volatile uint16_t passed = 0;
 /*get DHT level within irq*/
 void IRAM_ATTR DHT_ISR()
 {
-  //if (passed > 2 && passed < 85)
+  // if (passed > 2 && passed < 85)
   dht_times[passed++] = esp_timer_get_time();
-  if(passed == 85)
+  if (passed == 85)
   {
     dht_ready = true;
     detachInterrupt((uint8_t)DHTPIN);
-  }  
+  }
 }
 /*Parse dht data*/
 int8_t parseDht()
 {
-  for (int k = 6; k < 85; k=k+2)
+  for (int k = 6; k < 85; k = k + 2)
   {
-    if(dht_times[k] - dht_times[k-1] > 40)
+    if (dht_times[k] - dht_times[k - 1] > 40)
       dhtData[dht_byteInx] |= (1 << dht_bitInx);
     if (dht_bitInx == 0)
     {
-        dht_bitInx = 7;
-        ++dht_byteInx;
+      dht_bitInx = 7;
+      ++dht_byteInx;
     }
     else
-        dht_bitInx--;
+      dht_bitInx--;
   }
   dht_byteInx = 0;
   dht_bitInx = 7;
@@ -155,23 +155,22 @@ int8_t parseDht()
 void dhtCheck(TimerHandle_t xTimer)
 {
   static gpio_num_t DHTgpio = DHTPIN;
-  esp_err_t ert;  
+  esp_err_t ert;
   switch (dht_state)
-  {      
-  case DHT_SLEEP:
-  if(!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
   {
+  case DHT_SLEEP:
+    if (!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
+    {
       WiFi.disconnect();
-      ert = esp_wifi_stop();
       Serial.println(ert);
-      vTaskDelay(1000/portTICK_PERIOD_MS);
-  }
-    
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+
     attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
     passed = 0;
     for (uint8_t k = 0; k < 100; k++)
     {
-      dht_times[k]=0;
+      dht_times[k] = 0;
     }
     for (uint8_t k = 0; k < 5; k++)
       dhtData[k] = 0;
@@ -182,7 +181,7 @@ void dhtCheck(TimerHandle_t xTimer)
     break;
   case DHT_WAKING:
     dht_state = DHT_WAIT_HIGH;
-    //configASSERT(xTimerStop(xDhtTimer, 100 / portTICK_PERIOD_MS));
+    // configASSERT(xTimerStop(xDhtTimer, 100 / portTICK_PERIOD_MS));
     configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
     gpio_set_level(DHTgpio, 1);
     gpio_set_direction(DHTgpio, GPIO_MODE_INPUT);
@@ -370,13 +369,13 @@ void setup()
 
   xRgbTimer = xTimerCreate("RGB timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
   configASSERT(xRgbTimer);
-  configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));  
+  configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));
 
-  //DHT works only when we have wifi connection, so as to not stop the server qhen receiving ssid and password
-   xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
-   configASSERT(xDhtTimer);
-   configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
-  
+  // DHT works only when we have wifi connection, so as to not stop the server qhen receiving ssid and password
+  xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
+  configASSERT(xDhtTimer);
+  configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
+
 #if SERIAL_DEBUG
   Serial.begin(115200);
 #endif
@@ -412,7 +411,7 @@ void setup()
   if (checkWiFiCredentials())
   {
     if (connectWifi())
-    {      
+    {
       /*Setup Firebase credentials in setup(), that is c onnect to FireBase.
         Two parameters are necessary: the firebase_url and the firebase_API_key*/
       rgb_state |= 1UL << NO_USER;
@@ -500,8 +499,7 @@ void setup()
       0,            /* Priority of the task */
       &wiFiHandler, /* Task handle. */
       0);           /* Core where the task should run */
-  vTaskDelay(1/portTICK_PERIOD_MS);  
-  attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
+  vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
 void loop()
@@ -598,14 +596,14 @@ void loop()
   }
   if (dht_ready)
   {
-   previousDHT = current;
+    previousDHT = current;
     int8_t err = parseDht();
-    if(err == DHT_OK)
-      {
-            tx.humidity = auxHumidity;
-            tx.temperature = auxTemp;
-      }
-   #if SERIAL_DEBUG && DHT_DEBUG
+    if (err == DHT_OK)
+    {
+      tx.humidity = auxHumidity;
+      tx.temperature = auxTemp;
+    }
+#if SERIAL_DEBUG && DHT_DEBUG
     /* for(uint8_t k = 0; k < 84; k++)
     {
       Serial.print(dht_times[k]);
@@ -619,20 +617,14 @@ void loop()
     } */
     Serial.println(auxTemp);
     Serial.println(auxHumidity);
-    Serial.println(err);    
+    Serial.println(err);
     Serial.println(passed);
-#endif    
+#endif
     configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
     dht_ready = false;
     passed = 0;
     dht_state = DHT_SLEEP;
-    connectWifi();
-  }
-  if ((uint32_t)(current - previousDHT) > 1.5*DHT_SENSE_PERIOD)
-  {
-      configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
-    dht_ready = false;
-    passed = 0;
-    dht_state = DHT_SLEEP;
+    if (!gettingWiFiCredentials)
+      connectWifi();
   }
 }

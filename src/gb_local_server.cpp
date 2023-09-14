@@ -159,17 +159,18 @@ bool checkWiFiCredentials() {
 // In charge of connecting to WiFi LAN and FireBase Data Base //
 /**************************************************************/
 bool connectWifi() {
+  uint8_t t = 0;
   WiFi.mode(WIFI_STA);
-  uint8_t res = WiFi.begin(ssidc, passwordc);
-  while (WiFi.status() != WL_CONNECTED && res != WL_CONNECT_FAILED)
-  {    
-    debounceWiFiReset();
-#if SERIAL_DEBUG && WIFI_DEBUG        
-    Serial.println("connecting wifi");
-#endif
-    rgb_state |= 1UL << WIFI_DISC;
+  uint8_t res = 0;
+  while(t<3)
+  {
+    WiFi.begin(ssidc, passwordc);
+    res = WiFi.waitForConnectResult(30000);
+    if(res == WL_CONNECTED)
+      t=3;
+    t++;
   }
-  if(res == WL_CONNECT_FAILED)
+  if(res != WL_CONNECTED)
   {
    rgb_state |= (1UL << WIFI_DISC);
    return false;
