@@ -17,26 +17,15 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   // This portion of code uses a generic DHT from RandomNerdTutorials //
   /********************************************************************/
   static uint8_t dhtFails = 0;
-  if(!isnan(auxTemp) && !isnan(auxHumidity)
-      && auxTemp <= 100 && auxTemp >= (-60)
-      && auxHumidity <= 100 && auxHumidity >= 0)
+  if ((rgb_state >> DHT_ERR) & 1U)
   {
-    /* if(abs(auxTemp - (*tx).temperature) < MAX_TEMP_STEP)//filter big steps in temperature, 1.1C
-    { */
-      rgb_state &= ~(1UL << DHT_ERR);
-      (*tx).humidity = auxHumidity;
-      (*tx).temperature = auxTemp;
-      dhtFails = 0;
-   // }
+      return;
   }
   else
   {
-    dhtFails++;
-    if(dhtFails >= DHT_MAX_ERR)
-    {
-      rgb_state |= 1UL << DHT_ERR;
+      (*tx).humidity = auxHumidity;
+      (*tx).temperature = auxTemp;
       dhtFails = 0;
-    }
   }
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or

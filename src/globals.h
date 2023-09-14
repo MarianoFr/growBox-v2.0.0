@@ -20,8 +20,8 @@
 #define MAX_IN_HUM  65/*considering the vegetative term*/
 #define MIN_IN_TEMP 26
 #define MIN_IN_HUM  63
-#define DHT_SENSE_PERIOD       5000
-#define DHT_WAKE_ORDER_PERIOD  2
+#define DHT_SENSE_PERIOD       10000
+#define DHT_WAKE_ORDER_PERIOD  3
 #define DHT_OK  0
 #define DHT_CHECKSUM_ERROR  -1
 /*Global RGB state timer*/
