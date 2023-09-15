@@ -33,7 +33,7 @@ void debounceWiFiReset(void)
                   sprintf(aux_1,"growboxs/%s/", user_id);
                   Firebase.deleteNode(firebaseData2, aux_1);
                 }                    
-                vTaskDelay(pdMS_TO_TICKS(10000));
+                vTaskDelay(pdMS_TO_TICKS(5000));
                 WiFi.disconnect();
                 EEPROM.write(WIFI_CRED_FLAG, NO_CREDENTIALS); // wifi flag erased, credentials will be reset.
                 EEPROM.commit();

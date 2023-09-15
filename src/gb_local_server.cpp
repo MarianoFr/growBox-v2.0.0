@@ -173,6 +173,7 @@ bool connectWifi() {
   if(res != WL_CONNECTED)
   {
    rgb_state |= (1UL << WIFI_DISC);
+   rgb_state &= ~(1UL << WIFI_CONN);
    return false;
   }
   rgb_state &= ~(1UL << WIFI_DISC);

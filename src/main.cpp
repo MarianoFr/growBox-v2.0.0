@@ -124,6 +124,7 @@ int8_t parseDht()
     else
       dht_bitInx--;
   }
+  // == get hum from Data[0] and Data[1]
   dht_byteInx = 0;
   dht_bitInx = 7;
   auxHumidity = dhtData[0];
@@ -132,21 +133,17 @@ int8_t parseDht()
   auxHumidity /= 10; // get the decimal
 
   // == get temp from Data[2] and Data[3]
-
   auxTemp = dhtData[2] & 0x7F;
   auxTemp *= 0x100; // >> 8
   auxTemp += dhtData[3];
   auxTemp /= 10;
-
   if (dhtData[2] & 0x80) // negative temp, brrr it's freezing
     auxTemp *= -1;
 
   // == verify if checksum is ok ===========================================
   // Checksum is the sum of Data 8 bits masked out 0xFF
-
   if (dhtData[4] == ((dhtData[0] + dhtData[1] + dhtData[2] + dhtData[3]) & 0xFF))
     return DHT_OK;
-
   else
     return DHT_CHECKSUM_ERROR;
 }
@@ -163,10 +160,10 @@ void dhtCheck(TimerHandle_t xTimer)
     if (!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
     {
       WiFi.disconnect();
-      //Serial.println(ert);
+      rgb_state &= ~(1UL << WIFI_CONN);
+      rgb_state |= 1UL << WIFI_DISC;
       vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-
     attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
     passed = 0;
     for (uint8_t k = 0; k < 100; k++)

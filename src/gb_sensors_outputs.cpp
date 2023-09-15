@@ -16,12 +16,7 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   /********************************************************************/
   // This portion of code uses a generic DHT from RandomNerdTutorials //
   /********************************************************************/
-  static uint8_t dhtFails = 0;
-  if ((rgb_state >> DHT_ERR) & 1U)
-  {
-      return;
-  }
-  
+  static uint8_t dhtFails = 0;  
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or
     could be turned on and off depending on temperature and humidity*/
@@ -35,6 +30,10 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   { //TODO alarm sensor not working
     if ( (*rx).temperatureControl ) 
     {
+      if ((rgb_state >> DHT_ERR) & 1U)
+      {
+            return;
+      }
       if((*rx).tempCtrlHigh)
       {
         if ( ((*tx).temperature > ((*rx).temperatureSet)) && !(*tx).temperatureControlOn ) 
