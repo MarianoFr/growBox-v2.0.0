@@ -21,6 +21,7 @@
 #include "fb_mgmt.h"
 #include "gb_sensors_outputs.h"
 #include "driver/gpio.h"
+#include "driver/uart.h"
 
 TaskHandle_t wiFiHandler; // Task to handle wifi in core 0
 
@@ -162,7 +163,7 @@ void dhtCheck(TimerHandle_t xTimer)
     if (!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
     {
       WiFi.disconnect();
-      Serial.println(ert);
+      //Serial.println(ert);
       vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 
@@ -378,6 +379,8 @@ void setup()
 
 #if SERIAL_DEBUG
   Serial.begin(115200);
+  #else
+  uart_driver_delete(UART_NUM_0);
 #endif
   // disableCore0WDT();
   // disableLoopWDT();
