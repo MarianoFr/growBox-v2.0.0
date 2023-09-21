@@ -165,7 +165,7 @@ bool connectWifi() {
   while(t<3)
   {
     WiFi.begin(ssidc, passwordc);
-    res = WiFi.waitForConnectResult(30000);
+    res = WiFi.waitForConnectResult(10000);
     if(res == WL_CONNECTED)
       t=3;
     t++;
@@ -231,11 +231,14 @@ void wiFiTasks( void * pvParameters ) {
       }
     }
 
-    /* if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
+    if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
     {
-      rgb_state |= 1UL << WIFI_DISC;
-      connectWifi();
-    } */
+      if(xSemaphoreTake(xDhtWiFiSemaphore, portMAX_DELAY)==pdTRUE)
+      {
+        rgb_state |= 1UL << WIFI_DISC;
+        connectWifi();
+      }
+    }
     yield();
   }
 }

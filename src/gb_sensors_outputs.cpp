@@ -1,11 +1,14 @@
 #include "gb_sensors_outputs.h"
 #include "MeanFilterLib.h"
 
-#define DELTA_SOIL_V 150
-
+#define DELTA_SOIL_V_MV 150
+#define MAX_SOIL_VOLT_RANGE_MV 3400
+#define MIN_SOIL_VOLT_RANGE_MV 1500
+#define MAX_INST_VOLT_DIF      3150
+#define SOIL_MEAN_WINDOW_SIZE  500
 /*Light sensor*/
 BH1750 lightMeter(0x23);
-MeanFilter<uint32_t> meanFilter(500);
+MeanFilter<uint32_t> meanFilter(SOIL_MEAN_WINDOW_SIZE);
 
 /***********************************************************************/
 // Reads both variables from the DHT and updates them in the Data Base,//
@@ -256,27 +259,54 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   static unsigned long wateringDelay = 3*60000; //En Milisegundos
   static unsigned long manualWateringStart = 0;
   /*get soil moisture reading*/
-  static uint32_t voltage_mv = 0;//the bigger the reading, the drier the ground
-  static float voltage_v = 0;
-  static float slope = 0, intercept = 0;
-  
+  static int32_t voltage_mv = 0;//the bigger the reading, the drier the ground
+  uint32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
+  float voltage_v = 0;
+  float slope = 0, intercept = 0;
+  float std_dev = meanFilter.GetStdDev();
   slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
   intercept = 0.5*(1/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
-
-  voltage_mv = meanFilter.AddValue(analogReadMilliVolts(SOILPIN));
+  instant_voltage_mv = analogReadMilliVolts(SOILPIN);
+  /* Serial.print("*******Inst. Volt.********");
+  Serial.println(instant_voltage_mv);
+  Serial.print("*******Std. Dev.********");
+  Serial.println(std_dev); */
+  if(instant_voltage_mv > MAX_SOIL_VOLT_RANGE_MV 
+    || instant_voltage_mv < MIN_SOIL_VOLT_RANGE_MV)//not in range
+  {    
+    return;
+  }
+  if(meanFilter._count == SOIL_MEAN_WINDOW_SIZE)
+    if(abs(double(instant_voltage_mv - voltage_mv)) > 2*std_dev)
+    {
+      return;
+    }
+  
+  voltage_mv = meanFilter.AddValue(instant_voltage_mv);
+  
   voltage_v = (float)voltage_mv/1000;
 
-  if(voltage_mv > v0 and voltage_mv < v0+DELTA_SOIL_V)
+  if(voltage_mv > v0 and voltage_mv < v0+DELTA_SOIL_V_MV)//dryer than ref 
   {
     v0 = voltage_mv;
     EEPROM.writeUInt(V0_SOIL, v0);
     EEPROM.commit();
+  #if SERIAL_DEBUG && SOIL_DEBUG
+    Serial.print("Writing new soil 0% ref:" );
+    Serial.println(voltage_mv);
+    vTaskDelay(5000/portTICK_PERIOD_MS);
+  #endif
   }
-  if(voltage_mv < v05 and voltage_mv > v05-DELTA_SOIL_V)
+  if(voltage_mv < v05 and voltage_mv > v05-DELTA_SOIL_V_MV)//more humyd than ref
   {
     v05 = voltage_mv;
     EEPROM.writeUInt(V05_SOIL, v05);
     EEPROM.commit();
+  #if SERIAL_DEBUG && SOIL_DEBUG
+    Serial.print("Writin new 50% ref:" );
+    Serial.println(voltage_mv);
+    vTaskDelay(5000/portTICK_PERIOD_MS);
+  #endif
   }
   (*tx).soilMoisture = ((1/voltage_v)*slope + intercept)*100;
 #if SERIAL_DEBUG && SOIL_DEBUG

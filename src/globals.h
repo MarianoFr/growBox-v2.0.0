@@ -24,6 +24,8 @@
 #define DHT_WAKE_ORDER_PERIOD  2
 #define DHT_OK  0
 #define DHT_CHECKSUM_ERROR  -1
+/*Semaphore wifi reconnection after dht poll*/
+extern SemaphoreHandle_t xDhtWiFiSemaphore;
 /*Global RGB state timer*/
 extern TimerHandle_t xRgbTimer;
 /*Auto soil calib points*/

@@ -65,6 +65,7 @@ const int daylightOffset_sec = 0;
   Initiates generic DHT sensor*/
 /*DHT dht(DHTPIN, DHTTYPE); */
 // DHT dht;
+SemaphoreHandle_t xDhtWiFiSemaphore;
 TimerHandle_t xRgbTimer;
 TimerHandle_t xDhtTimer;
 /* RTC configuration and variables */
@@ -101,12 +102,13 @@ volatile uint16_t passed = 0;
 /*get DHT level within irq*/
 void IRAM_ATTR DHT_ISR()
 {
-  // if (passed > 2 && passed < 85)
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   dht_times[passed++] = esp_timer_get_time();
   if (passed == 85)
-  {
+  {    
     dht_ready = true;
     detachInterrupt((uint8_t)DHTPIN);
+    xSemaphoreGiveFromISR(xDhtWiFiSemaphore, &xHigherPriorityTaskWoken);
   }
 }
 /*Parse dht data*/
@@ -162,7 +164,7 @@ void dhtCheck(TimerHandle_t xTimer)
       WiFi.disconnect();
       rgb_state &= ~(1UL << WIFI_CONN);
       rgb_state |= 1UL << WIFI_DISC;
-      vTaskDelay(1000 / portTICK_PERIOD_MS);
+      //vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
     passed = 0;
@@ -374,6 +376,8 @@ void setup()
   configASSERT(xDhtTimer);
   configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
 
+  xDhtWiFiSemaphore = xSemaphoreCreateBinary();
+  configASSERT(xDhtWiFiSemaphore);
 #if SERIAL_DEBUG
   Serial.begin(115200);
   #else
@@ -624,7 +628,5 @@ void loop()
     dht_ready = false;
     passed = 0;
     dht_state = DHT_SLEEP;
-    if (!gettingWiFiCredentials)
-      connectWifi();
   }
 }

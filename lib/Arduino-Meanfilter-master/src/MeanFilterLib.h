@@ -23,12 +23,14 @@ public:
 	MeanFilter<T>(const size_t windowSize);
 	T AddValue(const T value);
 	T GetFiltered();
+	T GetStdDev();
+	int _count;
 
 private:
 	T* _items;
 	T* _accessor;
-	int _windowSize;
-	int _count;
+	T _aux_sum=0;
+	int _windowSize;	
 	T _sum;
 
 	void addToBuffer(const T value);
@@ -62,6 +64,25 @@ template<typename T>
 T MeanFilter<T>::GetFiltered()
 {
 	return (_sum / _count);
+}
+
+template<typename T>
+T MeanFilter<T>::GetStdDev()
+{
+	T mean = GetFiltered();	
+	if(_count > 0)
+	{
+		_aux_sum += (_items[_count-1] - mean)^2;	
+		/* Serial.print(_items[_count-1]);
+		Serial.print("/////////////");
+		Serial.println(_aux_sum);
+		Serial.println(mean);
+		Serial.print("============");
+		Serial.println(sqrt((_aux_sum / _count))); */
+		return (T)sqrt((_aux_sum / _count));
+	}
+	else
+		return (T)0;
 }
 
 template<typename T>
