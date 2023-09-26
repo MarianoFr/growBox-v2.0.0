@@ -68,6 +68,7 @@ const int daylightOffset_sec = 0;
 SemaphoreHandle_t xDhtWiFiSemaphore;
 TimerHandle_t xRgbTimer;
 TimerHandle_t xDhtTimer;
+TimerHandle_t xDhtTimeOutTimer;
 /* RTC configuration and variables */
 ESP32Time rtc;
 bool rtc_calibrated = false;
@@ -104,11 +105,16 @@ void IRAM_ATTR DHT_ISR()
 {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   dht_times[passed++] = esp_timer_get_time();
+  #if SERIAL_DEBUG && DHT_DEBUG
+  //Serial.println("***********DHT_ISR");
+  //Serial.println(passed);
+  #endif
   if (passed == 85)
   {    
     dht_ready = true;
     detachInterrupt((uint8_t)DHTPIN);
     xSemaphoreGiveFromISR(xDhtWiFiSemaphore, &xHigherPriorityTaskWoken);
+    xTimerResetFromISR(xDhtTimeOutTimer,&xHigherPriorityTaskWoken);
   }
 }
 /*Parse dht data*/
@@ -156,15 +162,21 @@ void dhtCheck(TimerHandle_t xTimer)
 {
   static gpio_num_t DHTgpio = DHTPIN;
   esp_err_t ert;
+  #if SERIAL_DEBUG && DHT_DEBUG
+  Serial.println("********DHTTIMER triggered@@@@");
+  #endif
   switch (dht_state)
   {
   case DHT_SLEEP:
+  #if SERIAL_DEBUG && DHT_DEBUG
+  Serial.println("***********DHT_SLEEP@@@@");
+  #endif
     if (!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
     {
       WiFi.disconnect();
       rgb_state &= ~(1UL << WIFI_CONN);
       rgb_state |= 1UL << WIFI_DISC;
-      //vTaskDelay(1000 / portTICK_PERIOD_MS);
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
     passed = 0;
@@ -180,6 +192,9 @@ void dhtCheck(TimerHandle_t xTimer)
     configASSERT(xTimerChangePeriod(xDhtTimer, DHT_WAKE_ORDER_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
     break;
   case DHT_WAKING:
+  #if SERIAL_DEBUG && DHT_DEBUG
+  Serial.println("***********DHT_WAKING@@@@");
+  #endif
     dht_state = DHT_WAIT_HIGH;
     // configASSERT(xTimerStop(xDhtTimer, 100 / portTICK_PERIOD_MS));
     configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
@@ -337,6 +352,22 @@ static void RGBalert(TimerHandle_t xTimer)
 }
 
 /***********************************
+ * DHT timeout trigger
+ ***********************************/
+static void DhtTimeout(TimerHandle_t xTimer)
+{
+  configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
+  dht_ready = false;
+  passed = 0;
+  dht_state = DHT_SLEEP;
+  xSemaphoreGive(xDhtWiFiSemaphore);
+  #if SERIAL_DEBUG && DHT_DEBUG
+  Serial.println("DHT timeout callback");
+  #endif
+  return;
+}
+
+/***********************************
  * wifi core 0 tasks prototype
  * input pvParameters
  * out none
@@ -375,6 +406,17 @@ void setup()
   xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
   configASSERT(xDhtTimer);
   configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
+  if(xDhtTimer == NULL)
+  {
+    #if SERIAL_DEBUG
+    Serial.println("Timer not created");
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+    #endif  
+  }
+  
+  xDhtTimeOutTimer = xTimerCreate("DHT TimeOut timer", 40000 / portTICK_PERIOD_MS, pdTRUE, (void *)0, DhtTimeout);
+  configASSERT(xDhtTimeOutTimer);
+  configASSERT(xTimerStart(xDhtTimeOutTimer, 100 / portTICK_PERIOD_MS));
 
   xDhtWiFiSemaphore = xSemaphoreCreateBinary();
   configASSERT(xDhtWiFiSemaphore);

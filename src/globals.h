@@ -21,7 +21,7 @@
 #define MIN_IN_TEMP 26
 #define MIN_IN_HUM  63
 #define DHT_SENSE_PERIOD       30000
-#define DHT_WAKE_ORDER_PERIOD  2
+#define DHT_WAKE_ORDER_PERIOD  1
 #define DHT_OK  0
 #define DHT_CHECKSUM_ERROR  -1
 /*Semaphore wifi reconnection after dht poll*/
@@ -56,11 +56,11 @@ struct readControl {
   int humidityOffHour = 0;
   int temperatureOnHour = 0;
   int temperatureOffHour = 0;
-  int humiditySet = 100;
+  int humiditySet = 30;
   int onHour = 0;
   int offHour = 0;
   int soilMoistureSet = 0;
-  int temperatureSet = 100;
+  int temperatureSet = 28;
   bool water = false;
 };
 struct writeControl {

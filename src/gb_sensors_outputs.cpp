@@ -260,28 +260,41 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   static unsigned long manualWateringStart = 0;
   /*get soil moisture reading*/
   static int32_t voltage_mv = 0;//the bigger the reading, the drier the ground
-  uint32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
+  int32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
   float voltage_v = 0;
   float slope = 0, intercept = 0;
   float std_dev = meanFilter.GetStdDev();
   slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
   intercept = 0.5*(1/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
   instant_voltage_mv = analogReadMilliVolts(SOILPIN);
-  /* Serial.print("*******Inst. Volt.********");
+#if SERIAL_DEBUG && SOIL_DEBUG
+  Serial.print("*******Inst. Volt.********");
   Serial.println(instant_voltage_mv);
   Serial.print("*******Std. Dev.********");
-  Serial.println(std_dev); */
+  Serial.println(std_dev);
+  Serial.print("*******Voltage_mv********");
+  Serial.println(voltage_mv);
+  Serial.print("Slope: "); Serial.println(slope);
+  Serial.print("Intercept: "); Serial.println(intercept);
+  Serial.print("V0: "); Serial.println(v0);
+  Serial.print("V05: "); Serial.println(v05);
+#endif
   if(instant_voltage_mv > MAX_SOIL_VOLT_RANGE_MV 
     || instant_voltage_mv < MIN_SOIL_VOLT_RANGE_MV)//not in range
   {    
     return;
   }
   if(meanFilter._count == SOIL_MEAN_WINDOW_SIZE)
+  {
     if(abs(double(instant_voltage_mv - voltage_mv)) > 2*std_dev)
     {
+  #if SERIAL_DEBUG && SOIL_DEBUG
+    Serial.println(abs((double)(instant_voltage_mv - voltage_mv)));
+    Serial.println("********ExitSoil*********" );
+  #endif
       return;
     }
-  
+  }
   voltage_mv = meanFilter.AddValue(instant_voltage_mv);
   
   voltage_v = (float)voltage_mv/1000;

@@ -164,6 +164,9 @@ bool connectWifi() {
   uint8_t res = 0;
   while(t<3)
   {
+  #if SERIAL_DEBUG && WIFI_DEBUG
+    Serial.println("****WiFi connecting");
+  #endif
     WiFi.begin(ssidc, passwordc);
     res = WiFi.waitForConnectResult(10000);
     if(res == WL_CONNECTED)
@@ -172,10 +175,16 @@ bool connectWifi() {
   }
   if(res != WL_CONNECTED)
   {
-   rgb_state |= (1UL << WIFI_DISC);
-   rgb_state &= ~(1UL << WIFI_CONN);
+    rgb_state |= (1UL << WIFI_DISC);
+    rgb_state &= ~(1UL << WIFI_CONN);
+  #if SERIAL_DEBUG && WIFI_DEBUG
+    Serial.println("****WiFi failed");
+  #endif
    return false;
   }
+#if SERIAL_DEBUG && WIFI_DEBUG
+  Serial.println("****WiFi connected");
+#endif
   rgb_state &= ~(1UL << WIFI_DISC);
   rgb_state |= 1UL << WIFI_CONN;
   return true;
@@ -235,6 +244,9 @@ void wiFiTasks( void * pvParameters ) {
     {
       if(xSemaphoreTake(xDhtWiFiSemaphore, portMAX_DELAY)==pdTRUE)
       {
+        #if SERIAL_DEBUG && WIFI_DEBUG
+        Serial.println("****Got Semaphore");
+        #endif
         rgb_state |= 1UL << WIFI_DISC;
         connectWifi();
       }
