@@ -20,12 +20,7 @@
 #define MAX_IN_HUM  65/*considering the vegetative term*/
 #define MIN_IN_TEMP 26
 #define MIN_IN_HUM  63
-#define DHT_SENSE_PERIOD       30000
-#define DHT_WAKE_ORDER_PERIOD  1
-#define DHT_OK  0
-#define DHT_CHECKSUM_ERROR  -1
-/*Semaphore wifi reconnection after dht poll*/
-extern SemaphoreHandle_t xDhtWiFiSemaphore;
+#define HTU21_SENSE_PERIOD       30000
 /*Global RGB state timer*/
 extern TimerHandle_t xRgbTimer;
 /*Auto soil calib points*/
@@ -41,11 +36,6 @@ extern char users_uid[100];
 extern String path;
 extern QueueHandle_t writeQueue;
 extern QueueHandle_t waterQueue;
-//extern QueueHandle_t dhtQueue;
-/* struct dhtData {
-   float temperature;
-   float humidity;
-}; */
 struct readControl {
   bool tempCtrlHigh = false;
   bool humCtrlHigh = false;

@@ -10,7 +10,7 @@
 
 extern BH1750 lightMeter;
 /***********************************************************************/
-// Reads both variables from the DHT and updates them in the Data Base,//
+// Reads both variables ZXand updates them in the Data Base,//
 // also if temperature exceeds 27C turns on the ammbient fans          //
 /***********************************************************************/
 void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *tx, int currentHour );

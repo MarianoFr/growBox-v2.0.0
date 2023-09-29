@@ -242,14 +242,8 @@ void wiFiTasks( void * pvParameters ) {
 
     if (WiFi.status() != WL_CONNECTED && (!gettingWiFiCredentials))
     {
-      if(xSemaphoreTake(xDhtWiFiSemaphore, portMAX_DELAY)==pdTRUE)
-      {
-        #if SERIAL_DEBUG && WIFI_DEBUG
-        Serial.println("****Got Semaphore");
-        #endif
-        rgb_state |= 1UL << WIFI_DISC;
-        connectWifi();
-      }
+      rgb_state |= 1UL << WIFI_DISC;
+      connectWifi();
     }
     yield();
   }

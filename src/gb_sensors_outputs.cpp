@@ -11,29 +11,19 @@ BH1750 lightMeter(0x23);
 MeanFilter<uint32_t> meanFilter(SOIL_MEAN_WINDOW_SIZE);
 
 /***********************************************************************/
-// Reads both variables from the DHT and updates them in the Data Base,//
+// Reads both variables and updates them in the Data Base,//
 // also if temperature exceeds 27C turns on the ammbient fans          //
 /***********************************************************************/
 void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *tx, int currentHour ) 
 {
-  /********************************************************************/
-  // This portion of code uses a generic DHT from RandomNerdTutorials //
-  /********************************************************************/
-  static uint8_t dhtFails = 0;  
   /*Humidity and temp, automatic control or periodic control
     The ventilators of the indoor can have a time period, or
     could be turned on and off depending on temperature and humidity*/
-#if SERIAL_DEBUG && DHT_DEBUG
-  /* Serial.print("**************Temperature: ");
-  Serial.println((*tx).temperature);
-  Serial.print("**************Humidity: ");
-  Serial.println((*tx).humidity);*/
-#endif 
   if ( (!isnan((*tx).temperature)) && (!isnan((*tx).humidity)) ) 
   { //TODO alarm sensor not working
     if ( (*rx).temperatureControl ) 
     {
-      if ((rgb_state >> DHT_ERR) & 1U)
+      if ((rgb_state >> HTU21_ERR) & 1U)
       {
             return;
       }

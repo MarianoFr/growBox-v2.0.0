@@ -7,9 +7,8 @@
 #include <Arduino.h>
 #include "debug_flags.h"
 // #include <esp_task_wdt.h>
+#include "Adafruit_HTU21DF.h"
 #include "WiFi.h"
-#include <OneWire.h>
-// #include "DHT.hpp"//DHT ambient humidity and temperature sensor
 #include <time.h> //Time library, getLocalTime
 #include <Wire.h>
 #include <ESP32Time.h>
@@ -34,13 +33,6 @@ TaskHandle_t wiFiHandler; // Task to handle wifi in core 0
 #define SSID_STORING_ADD 1
 #define PASS_STORING_ADD 51
 
-#define DHT_SLEEP 0
-#define DHT_WAKING 1
-#define DHT_SENDING 3
-#define DHT_WAIT_HIGH 4
-#define DHT_WAIT_LOW 5
-#define DHT_END_TX 6
-
 /*
    Mac path. When logging a user to the app for the first time, the movile
    creates children in the DB, named after the MAC address input by the user,
@@ -56,19 +48,8 @@ const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -10800;
 const int daylightOffset_sec = 0;
 /*Sensors definitions and declarations*/
-
-/*Ambient humidity and temperature sensor*/
-#define DHTPIN GPIO_NUM_19
-/* #define DHTTYPE   DHT22
-/* Iniatiates DHT Unified sensor
-  DHT_Unified dht(DHTPIN, DHTTYPE);
-  Initiates generic DHT sensor*/
-/*DHT dht(DHTPIN, DHTTYPE); */
-// DHT dht;
-SemaphoreHandle_t xDhtWiFiSemaphore;
+Adafruit_HTU21DF htu = Adafruit_HTU21DF();//HTU21 sensor object
 TimerHandle_t xRgbTimer;
-TimerHandle_t xDhtTimer;
-TimerHandle_t xDhtTimeOutTimer;
 /* RTC configuration and variables */
 ESP32Time rtc;
 bool rtc_calibrated = false;
@@ -78,7 +59,6 @@ readControl Rx;
 int currentHour = 0;
 QueueHandle_t writeQueue;
 QueueHandle_t waterQueue;
-// QueueHandle_t dhtQueue;
 float auxTemp = 0;
 float auxHumidity = 0;
 uint8_t rgb_state = 1;
@@ -88,123 +68,10 @@ uint32_t writePeriod = 3000;
 uint32_t espTagPeriod = 5 * 60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
-uint32_t previousDHT = 0;
 static writeControl tx;
 uint8_t retry = 0;
 uint32_t v0 = 0;
 uint32_t v05 = 0;
-volatile uint8_t dht_state = DHT_SLEEP;
-volatile int64_t dht_times[100];
-uint8_t dhtData[5];
-uint8_t dht_byteInx = 0;
-uint8_t dht_bitInx = 7;
-volatile bool dht_ready = false;
-volatile uint16_t passed = 0;
-/*get DHT level within irq*/
-void IRAM_ATTR DHT_ISR()
-{
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  dht_times[passed++] = esp_timer_get_time();
-  #if SERIAL_DEBUG && DHT_DEBUG
-  //Serial.println("***********DHT_ISR");
-  //Serial.println(passed);
-  #endif
-  if (passed == 85)
-  {    
-    dht_ready = true;
-    detachInterrupt((uint8_t)DHTPIN);
-    xSemaphoreGiveFromISR(xDhtWiFiSemaphore, &xHigherPriorityTaskWoken);
-    xTimerResetFromISR(xDhtTimeOutTimer,&xHigherPriorityTaskWoken);
-  }
-}
-/*Parse dht data*/
-int8_t parseDht()
-{
-  for (int k = 6; k < 85; k = k + 2)
-  {
-    if (dht_times[k] - dht_times[k - 1] > 40)
-      dhtData[dht_byteInx] |= (1 << dht_bitInx);
-    if (dht_bitInx == 0)
-    {
-      dht_bitInx = 7;
-      ++dht_byteInx;
-    }
-    else
-      dht_bitInx--;
-  }
-  // == get hum from Data[0] and Data[1]
-  dht_byteInx = 0;
-  dht_bitInx = 7;
-  auxHumidity = dhtData[0];
-  auxHumidity *= 0x100; // >> 8
-  auxHumidity += dhtData[1];
-  auxHumidity /= 10; // get the decimal
-
-  // == get temp from Data[2] and Data[3]
-  auxTemp = dhtData[2] & 0x7F;
-  auxTemp *= 0x100; // >> 8
-  auxTemp += dhtData[3];
-  auxTemp /= 10;
-  if (dhtData[2] & 0x80) // negative temp, brrr it's freezing
-    auxTemp *= -1;
-
-  // == verify if checksum is ok ===========================================
-  // Checksum is the sum of Data 8 bits masked out 0xFF
-  if (dhtData[4] == ((dhtData[0] + dhtData[1] + dhtData[2] + dhtData[3]) & 0xFF))
-    return DHT_OK;
-  else
-    return DHT_CHECKSUM_ERROR;
-}
-/***********************************
- * DHT timer start
- ***********************************/
-void dhtCheck(TimerHandle_t xTimer)
-{
-  static gpio_num_t DHTgpio = DHTPIN;
-  esp_err_t ert;
-  #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.println("********DHTTIMER triggered@@@@");
-  #endif
-  switch (dht_state)
-  {
-  case DHT_SLEEP:
-  #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.println("***********DHT_SLEEP@@@@");
-  #endif
-    if (!gettingWiFiCredentials && WiFi.status() == WL_CONNECTED)
-    {
-      WiFi.disconnect();
-      rgb_state &= ~(1UL << WIFI_CONN);
-      rgb_state |= 1UL << WIFI_DISC;
-      vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    attachInterrupt((uint8_t)DHTPIN, DHT_ISR, CHANGE);
-    passed = 0;
-    for (uint8_t k = 0; k < 100; k++)
-    {
-      dht_times[k] = 0;
-    }
-    for (uint8_t k = 0; k < 5; k++)
-      dhtData[k] = 0;
-    gpio_set_direction(DHTgpio, GPIO_MODE_OUTPUT);
-    gpio_set_level(DHTgpio, 0);
-    dht_state = DHT_WAKING;
-    configASSERT(xTimerChangePeriod(xDhtTimer, DHT_WAKE_ORDER_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
-    break;
-  case DHT_WAKING:
-  #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.println("***********DHT_WAKING@@@@");
-  #endif
-    dht_state = DHT_WAIT_HIGH;
-    // configASSERT(xTimerStop(xDhtTimer, 100 / portTICK_PERIOD_MS));
-    configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
-    gpio_set_level(DHTgpio, 1);
-    gpio_set_direction(DHTgpio, GPIO_MODE_INPUT);
-    break;
-  default:
-    break;
-  }
-}
 
 /***********************************
  * RTC alerts
@@ -282,15 +149,15 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_RED, red);
     }
     break;
-  case DHT_ERR:
-    if ((rgb_state >> DHT_ERR) & 1U)
+  case HTU21_ERR:
+    if ((rgb_state >> HTU21_ERR) & 1U)
     {
       green = 0;
       red = 0;
       blue = 255;
 #if SERIAL_DEBUG && RGB_DEBUG
       Serial.println("Azul");
-      Serial.println("DHT_ERR");
+      Serial.println("HTU21_ERR");
 #endif
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
@@ -352,22 +219,6 @@ static void RGBalert(TimerHandle_t xTimer)
 }
 
 /***********************************
- * DHT timeout trigger
- ***********************************/
-static void DhtTimeout(TimerHandle_t xTimer)
-{
-  configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
-  dht_ready = false;
-  passed = 0;
-  dht_state = DHT_SLEEP;
-  xSemaphoreGive(xDhtWiFiSemaphore);
-  #if SERIAL_DEBUG && DHT_DEBUG
-  Serial.println("DHT timeout callback");
-  #endif
-  return;
-}
-
-/***********************************
  * wifi core 0 tasks prototype
  * input pvParameters
  * out none
@@ -375,7 +226,7 @@ static void DhtTimeout(TimerHandle_t xTimer)
 void wiFiTasks(void *pvParameters);
 
 /*****************************************************************************/
-// Set-up config for our ESP32: serial, WiFi, initiates OneWire comms, GPIOs //
+// Set-up config for our ESP32: serial, WiFi, initiates comms, GPIOs //
 /*****************************************************************************/
 void setup()
 {
@@ -401,28 +252,10 @@ void setup()
   xRgbTimer = xTimerCreate("RGB timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
   configASSERT(xRgbTimer);
   configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));
-
-  // DHT works only when we have wifi connection, so as to not stop the server qhen receiving ssid and password
-  xDhtTimer = xTimerCreate("DHT timer", DHT_SENSE_PERIOD / portTICK_PERIOD_MS, pdTRUE, (void *)0, dhtCheck);
-  configASSERT(xDhtTimer);
-  configASSERT(xTimerStart(xDhtTimer, 100 / portTICK_PERIOD_MS));
-  if(xDhtTimer == NULL)
-  {
-    #if SERIAL_DEBUG
-    Serial.println("Timer not created");
-    vTaskDelay(1000/portTICK_PERIOD_MS);
-    #endif  
-  }
   
-  xDhtTimeOutTimer = xTimerCreate("DHT TimeOut timer", 40000 / portTICK_PERIOD_MS, pdTRUE, (void *)0, DhtTimeout);
-  configASSERT(xDhtTimeOutTimer);
-  configASSERT(xTimerStart(xDhtTimeOutTimer, 100 / portTICK_PERIOD_MS));
-
-  xDhtWiFiSemaphore = xSemaphoreCreateBinary();
-  configASSERT(xDhtWiFiSemaphore);
 #if SERIAL_DEBUG
   Serial.begin(115200);
-  #else
+#else
   uart_driver_delete(UART_NUM_0);
 #endif
   // disableCore0WDT();
@@ -450,6 +283,16 @@ void setup()
     rgb_state &= ~(1UL << BH_1750_ERR);
   }
   bh1750_tries = 0;
+
+  uint8_t htu_tries = 0;
+  while (!htu.begin() && htu_tries < 5) 
+  {
+#if SERIAL_DEBUG && HTU_DEBUG
+    Serial.println("Error initialising HTU21");
+#endif
+    htu_tries++;
+  }
+  htu_tries = 0;
 
   v0 = EEPROM.readUInt(V0_SOIL);
   v05 = EEPROM.readUInt(V05_SOIL);
@@ -622,53 +465,12 @@ void loop()
     analogSoilRead(&Rx, &tx);
     TemperatureHumidityHandling(&Rx, &tx, currentHour);
     PhotoPeriod(&Rx, &tx, currentHour);
-
-    /* if ((uint32_t)(current - previousDHTRead) > dhtPeriod)
+    auxTemp = htu.readTemperature();
+    auxHumidity = htu.readHumidity();
+    if(!isnan(auxTemp) && !isnan(auxHumidity))
     {
-      int8_t err = 0;
-      err = dht.readDHT();
-      if(err == DHT_OK)
-      {
-        auxTemp = dht.getTemperature();
-        auxHumidity = dht.getHumidity();
-      }
-      previousDHTRead = current;
-      #if SERIAL_DEBUG && DHT_DEBUG
-      Serial.println(auxTemp);
-      Serial.println(auxHumidity);
-      Serial.println(err);
-      #endif
-    }  */
-  }
-  if (dht_ready)
-  {
-    previousDHT = current;
-    int8_t err = parseDht();
-    if (err == DHT_OK)
-    {
-      tx.humidity = auxHumidity;
       tx.temperature = auxTemp;
+      tx.humidity = auxHumidity;
     }
-#if SERIAL_DEBUG && DHT_DEBUG
-    /* for(uint8_t k = 0; k < 84; k++)
-    {
-      Serial.print(dht_times[k]);
-      Serial.print("-");
-    }
-    Serial.println(dht_times[84]);
-    for(uint8_t k = 0; k < 84; k++)
-    {
-      Serial.print(dht_times[k+1]-dht_times[k]);
-      Serial.print("-");
-    } */
-    Serial.println(auxTemp);
-    Serial.println(auxHumidity);
-    Serial.println(err);
-    Serial.println(passed);
-#endif
-    configASSERT(xTimerChangePeriod(xDhtTimer, DHT_SENSE_PERIOD / portTICK_PERIOD_MS, 100 / portTICK_PERIOD_MS));
-    dht_ready = false;
-    passed = 0;
-    dht_state = DHT_SLEEP;
-  }
+  }  
 }
