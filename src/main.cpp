@@ -264,6 +264,7 @@ void setup()
   if (!Wire.begin())
   {
     rgb_state |= 1UL << BH_1750_ERR;
+    rgb_state |= 1UL << HTU21_ERR;
   }
   uint8_t bh1750_tries = 0;
   while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5))
@@ -291,6 +292,14 @@ void setup()
     Serial.println("Error initialising HTU21");
 #endif
     htu_tries++;
+    rgb_state |= 1UL << HTU21_ERR;
+  }
+  if (htu_tries < 5)
+  {
+#if SERIAL_DEBUG && BH_DEBUG
+    Serial.println("HTU21 began");
+#endif
+    rgb_state &= ~(1UL << HTU21_ERR);
   }
   htu_tries = 0;
 
@@ -471,6 +480,26 @@ void loop()
     {
       tx.temperature = auxTemp;
       tx.humidity = auxHumidity;
+    }
+    else
+    {
+      uint8_t htu_tries = 0;
+      while (!htu.begin() && htu_tries < 5) 
+      {
+    #if SERIAL_DEBUG && HTU_DEBUG
+        Serial.println("Error initialising HTU21");
+    #endif
+        htu_tries++;
+        rgb_state |= 1UL << HTU21_ERR;
+      }
+      if (htu_tries < 5)
+      {
+    #if SERIAL_DEBUG && BH_DEBUG
+        Serial.println("HTU21 began");
+    #endif
+        rgb_state &= ~(1UL << HTU21_ERR);
+      }
+      htu_tries = 0;
     }
   }  
 }

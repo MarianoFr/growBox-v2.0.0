@@ -240,22 +240,25 @@ void PhotoPeriod( struct readControl *rx, struct writeControl *tx , int currentH
   }
 
 }
-/*******************/
-/*Analog soil read */
-/*******************/
+/***************************************/
+/*Analog soil read and watering control*/
+/***************************************/
 void analogSoilRead(struct readControl *rx, struct writeControl *tx)
 {
   bool stopWater1 = false;
   static unsigned long wateringDelay = 3*60000; //En Milisegundos
   static unsigned long manualWateringStart = 0;
-  /*get soil moisture reading*/
   static int32_t voltage_mv = 0;//the bigger the reading, the drier the ground
   int32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
   float voltage_v = 0;
   float slope = 0, intercept = 0;
   float std_dev = meanFilter.GetStdDev();
+
+  //Calculate Slope and Intercept as a function of 0% moisture voltage (v0) and 50% moisture voltage (v05) 
   slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
   intercept = 0.5*(1/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
+
+  //Current moisture voltage reading
   instant_voltage_mv = analogReadMilliVolts(SOILPIN);
 #if SERIAL_DEBUG && SOIL_DEBUG
   Serial.print("*******Inst. Volt.********");
@@ -269,27 +272,22 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   Serial.print("V0: "); Serial.println(v0);
   Serial.print("V05: "); Serial.println(v05);
 #endif
+
   if(instant_voltage_mv > MAX_SOIL_VOLT_RANGE_MV 
     || instant_voltage_mv < MIN_SOIL_VOLT_RANGE_MV)//not in range
   {    
     return;
   }
-  if(meanFilter._count == SOIL_MEAN_WINDOW_SIZE)
+  if(((rgb_state >> BH_1750_ERR) & 1U) && ((rgb_state >> HTU21_ERR) & 1U))//disconnected
   {
-    if(abs(double(instant_voltage_mv - voltage_mv)) > 2*std_dev)
-    {
-  #if SERIAL_DEBUG && SOIL_DEBUG
-    Serial.println(abs((double)(instant_voltage_mv - voltage_mv)));
-    Serial.println("********ExitSoil*********" );
-  #endif
-      return;
-    }
+    return;
   }
+
   voltage_mv = meanFilter.AddValue(instant_voltage_mv);
   
   voltage_v = (float)voltage_mv/1000;
 
-  if(voltage_mv > v0 and voltage_mv < v0+DELTA_SOIL_V_MV)//dryer than ref 
+  if(voltage_mv > v0 and voltage_mv < v0 + DELTA_SOIL_V_MV)//dryer than ref 
   {
     v0 = voltage_mv;
     EEPROM.writeUInt(V0_SOIL, v0);
@@ -300,7 +298,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
     vTaskDelay(5000/portTICK_PERIOD_MS);
   #endif
   }
-  if(voltage_mv < v05 and voltage_mv > v05-DELTA_SOIL_V_MV)//more humyd than ref
+  if(voltage_mv < v05 and voltage_mv > v05 - DELTA_SOIL_V_MV)//more humyd than ref
   {
     v05 = voltage_mv;
     EEPROM.writeUInt(V05_SOIL, v05);
@@ -311,7 +309,9 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
     vTaskDelay(5000/portTICK_PERIOD_MS);
   #endif
   }
+
   (*tx).soilMoisture = ((1/voltage_v)*slope + intercept)*100;
+  
 #if SERIAL_DEBUG && SOIL_DEBUG
   Serial.print("Voltage in mV:" );
   Serial.println(voltage_mv);
@@ -320,16 +320,9 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   Serial.print("**************Soil moisture: "); 
   Serial.println((*tx).soilMoisture);
 #endif
-  if((*tx).soilMoisture >= 150)
-  {
-    (*tx).soilMoisture = 0;
-    rgb_state |= 1UL << SOIL_ERR;
-  }
-  else
-  {
-    (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
-    rgb_state &= ~(1UL << SOIL_ERR);
-  }
+  
+  (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
+  rgb_state &= ~(1UL << SOIL_ERR);
 
   if ( (*rx).automaticWatering ) {
     /*Compare with set point*/
