@@ -7,10 +7,10 @@
 #include <Arduino.h>
 #include "debug_flags.h"
 // #include <esp_task_wdt.h>
-#include "Adafruit_HTU21DF.h"
+#include <Wire.h>
+#include "Adafruit_SHT31.h"
 #include "WiFi.h"
 #include <time.h> //Time library, getLocalTime
-#include <Wire.h>
 #include <ESP32Time.h>
 #include <analogWrite.h>
 #include "gb_local_server.h"
@@ -48,7 +48,7 @@ const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -10800;
 const int daylightOffset_sec = 0;
 /*Sensors definitions and declarations*/
-Adafruit_HTU21DF htu = Adafruit_HTU21DF();//HTU21 sensor object
+Adafruit_SHT31 sht31 = Adafruit_SHT31();//SHT31 sensor object
 TimerHandle_t xRgbTimer;
 /* RTC configuration and variables */
 ESP32Time rtc;
@@ -149,15 +149,15 @@ static void RGBalert(TimerHandle_t xTimer)
       analogWrite(PIN_RED, red);
     }
     break;
-  case HTU21_ERR:
-    if ((rgb_state >> HTU21_ERR) & 1U)
+  case SHT31_ERR:
+    if ((rgb_state >> SHT31_ERR) & 1U)
     {
       green = 0;
       red = 0;
       blue = 255;
 #if SERIAL_DEBUG && RGB_DEBUG
       Serial.println("Azul");
-      Serial.println("HTU21_ERR");
+      Serial.println("SHT31_ERR");
 #endif
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
@@ -264,7 +264,7 @@ void setup()
   if (!Wire.begin())
   {
     rgb_state |= 1UL << BH_1750_ERR;
-    rgb_state |= 1UL << HTU21_ERR;
+    rgb_state |= 1UL << SHT31_ERR;
   }
   uint8_t bh1750_tries = 0;
   while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5))
@@ -285,23 +285,23 @@ void setup()
   }
   bh1750_tries = 0;
 
-  uint8_t htu_tries = 0;
-  while (!htu.begin() && htu_tries < 5) 
+  uint8_t sht_tries = 0;
+  while (!sht31.begin(0x44) && sht_tries < 5) 
   {
-#if SERIAL_DEBUG && HTU_DEBUG
+#if SERIAL_DEBUG && SHT_DEBUG
     Serial.println("Error initialising HTU21");
 #endif
-    htu_tries++;
-    rgb_state |= 1UL << HTU21_ERR;
+    sht_tries++;
+    rgb_state |= 1UL << SHT31_ERR;
   }
-  if (htu_tries < 5)
+  if (sht_tries < 5)
   {
 #if SERIAL_DEBUG && BH_DEBUG
     Serial.println("HTU21 began");
 #endif
-    rgb_state &= ~(1UL << HTU21_ERR);
+    rgb_state &= ~(1UL << SHT31_ERR);
   }
-  htu_tries = 0;
+  sht_tries = 0;
 
   v0 = EEPROM.readUInt(V0_SOIL);
   v05 = EEPROM.readUInt(V05_SOIL);
@@ -474,8 +474,8 @@ void loop()
     analogSoilRead(&Rx, &tx);
     TemperatureHumidityHandling(&Rx, &tx, currentHour);
     PhotoPeriod(&Rx, &tx, currentHour);
-    auxTemp = htu.readTemperature();
-    auxHumidity = htu.readHumidity();
+    auxTemp = sht31.readTemperature();
+    auxHumidity = sht31.readHumidity();
     if(!isnan(auxTemp) && !isnan(auxHumidity))
     {
       tx.temperature = auxTemp;
@@ -483,23 +483,23 @@ void loop()
     }
     else
     {
-      uint8_t htu_tries = 0;
-      while (!htu.begin() && htu_tries < 5) 
+      uint8_t sht_tries = 0;
+      while (!sht31.begin(0x44) && sht_tries < 5) 
       {
-    #if SERIAL_DEBUG && HTU_DEBUG
+    #if SERIAL_DEBUG && SHT_DEBUG
         Serial.println("Error initialising HTU21");
     #endif
-        htu_tries++;
-        rgb_state |= 1UL << HTU21_ERR;
+        sht_tries++;
+        rgb_state |= 1UL << SHT31_ERR;
       }
-      if (htu_tries < 5)
+      if (sht_tries < 5)
       {
     #if SERIAL_DEBUG && BH_DEBUG
         Serial.println("HTU21 began");
     #endif
-        rgb_state &= ~(1UL << HTU21_ERR);
+        rgb_state &= ~(1UL << SHT31_ERR);
       }
-      htu_tries = 0;
+      sht_tries = 0;
     }
   }  
 }
