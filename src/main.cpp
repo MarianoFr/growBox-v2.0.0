@@ -49,6 +49,8 @@ const long gmtOffset_sec = -10800;
 const int daylightOffset_sec = 0;
 /*Sensors definitions and declarations*/
 Adafruit_SHT31 sht31 = Adafruit_SHT31();//SHT31 sensor object
+bool enableHeater = false;
+uint8_t sht_read = 0;
 TimerHandle_t xRgbTimer;
 /* RTC configuration and variables */
 ESP32Time rtc;
@@ -64,7 +66,7 @@ float auxHumidity = 0;
 uint8_t rgb_state = 1;
 uint8_t nmbr_outputs = 0;
 uint32_t current = 0;
-uint32_t writePeriod = 3000;
+uint32_t writePeriod = 60000;
 uint32_t espTagPeriod = 5 * 60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
@@ -289,19 +291,25 @@ void setup()
   while (!sht31.begin(0x44) && sht_tries < 5) 
   {
 #if SERIAL_DEBUG && SHT_DEBUG
-    Serial.println("Error initialising HTU21");
+    Serial.println("Error initialising SHT31");
 #endif
     sht_tries++;
     rgb_state |= 1UL << SHT31_ERR;
   }
   if (sht_tries < 5)
   {
-#if SERIAL_DEBUG && BH_DEBUG
-    Serial.println("HTU21 began");
+#if SERIAL_DEBUG && SHT_DEBUG
+    Serial.println("SHT31 began");
 #endif
     rgb_state &= ~(1UL << SHT31_ERR);
   }
   sht_tries = 0;
+  if (sht31.isHeaterEnabled())
+  {
+  #if SERIAL_DEBUG && SHT_DEBUG
+    Serial.println("SHT31 heater enabled");
+  #endif
+  }
 
   v0 = EEPROM.readUInt(V0_SOIL);
   v05 = EEPROM.readUInt(V05_SOIL);
@@ -461,9 +469,30 @@ void loop()
     //************* Start Update FB dashboard ******************
     if ((uint32_t)(current - previousWrite) > writePeriod)
     {
+      sht_read++;
+      if(sht_read == 250)
+      {
+        sht_read = 0;
+        enableHeater = !enableHeater;
+        sht31.heater(enableHeater);
+      #if SERIAL_DEBUG && SHT_DEBUG
+        Serial.println("Heater toggle");
+      #endif
+      }        
+      auxTemp = sht31.readTemperature();
+      auxHumidity = sht31.readHumidity();    
+    #if SERIAL_DEBUG && SHT_DEBUG
+      Serial.println(auxTemp);
+      Serial.println(auxHumidity);
+    #endif
+      if(!isnan(auxTemp) && !isnan(auxHumidity))
+      {
+        tx.temperature = auxTemp;
+        tx.humidity = auxHumidity;
+      }
       ReadBH1750(&tx);
       xQueueSend(writeQueue, &tx, 0);
-      previousWrite += writePeriod;
+      previousWrite += writePeriod;      
     }
     //************* End Update FB dashboard ******************
   } //************* End If Wifi connected ******************
@@ -473,33 +502,6 @@ void loop()
   {
     analogSoilRead(&Rx, &tx);
     TemperatureHumidityHandling(&Rx, &tx, currentHour);
-    PhotoPeriod(&Rx, &tx, currentHour);
-    auxTemp = sht31.readTemperature();
-    auxHumidity = sht31.readHumidity();
-    if(!isnan(auxTemp) && !isnan(auxHumidity))
-    {
-      tx.temperature = auxTemp;
-      tx.humidity = auxHumidity;
-    }
-    else
-    {
-      uint8_t sht_tries = 0;
-      while (!sht31.begin(0x44) && sht_tries < 5) 
-      {
-    #if SERIAL_DEBUG && SHT_DEBUG
-        Serial.println("Error initialising HTU21");
-    #endif
-        sht_tries++;
-        rgb_state |= 1UL << SHT31_ERR;
-      }
-      if (sht_tries < 5)
-      {
-    #if SERIAL_DEBUG && BH_DEBUG
-        Serial.println("HTU21 began");
-    #endif
-        rgb_state &= ~(1UL << SHT31_ERR);
-      }
-      sht_tries = 0;
-    }
+    PhotoPeriod(&Rx, &tx, currentHour);    
   }  
 }
