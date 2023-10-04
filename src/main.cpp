@@ -461,7 +461,6 @@ void loop()
     //************* Start Update FB dashboard ******************
     if ((uint32_t)(current - previousWrite) > writePeriod)
     {
-      ReadBH1750(&tx);
       xQueueSend(writeQueue, &tx, 0);
       previousWrite += writePeriod;
     }
@@ -474,32 +473,11 @@ void loop()
     analogSoilRead(&Rx, &tx);
     TemperatureHumidityHandling(&Rx, &tx, currentHour);
     PhotoPeriod(&Rx, &tx, currentHour);
-    auxTemp = htu.readTemperature();
-    auxHumidity = htu.readHumidity();
-    if(!isnan(auxTemp) && !isnan(auxHumidity))
+    ReadBH1750(&tx);
+    if(read_htu21())
     {
       tx.temperature = auxTemp;
       tx.humidity = auxHumidity;
-    }
-    else
-    {
-      uint8_t htu_tries = 0;
-      while (!htu.begin() && htu_tries < 5) 
-      {
-    #if SERIAL_DEBUG && HTU_DEBUG
-        Serial.println("Error initialising HTU21");
-    #endif
-        htu_tries++;
-        rgb_state |= 1UL << HTU21_ERR;
-      }
-      if (htu_tries < 5)
-      {
-    #if SERIAL_DEBUG && BH_DEBUG
-        Serial.println("HTU21 began");
-    #endif
-        rgb_state &= ~(1UL << HTU21_ERR);
-      }
-      htu_tries = 0;
-    }
+    }    
   }  
 }

@@ -5,10 +5,12 @@
 #define MAX_SOIL_VOLT_RANGE_MV 3400
 #define MIN_SOIL_VOLT_RANGE_MV 1500
 #define MAX_INST_VOLT_DIF      3150
-#define SOIL_MEAN_WINDOW_SIZE  500
+#define SOIL_MEAN_WINDOW_SIZE  20
+#define LUX_MEAN_WINDOW_SIZE  20
 /*Light sensor*/
 BH1750 lightMeter(0x23);
-MeanFilter<uint32_t> meanFilter(SOIL_MEAN_WINDOW_SIZE);
+MeanFilter<float> luxMeanFilter(LUX_MEAN_WINDOW_SIZE);
+MeanFilter<uint32_t> soilMeanFilter(SOIL_MEAN_WINDOW_SIZE);
 
 /***********************************************************************/
 // Reads both variables and updates them in the Data Base,//
@@ -174,7 +176,7 @@ void ReadBH1750(struct writeControl *tx) {
           Serial.println(lux);
         #endif 
     if(lux>0){
-      (*tx).lux = lux;
+      (*tx).lux = luxMeanFilter.AddValue(lux);
     }
     else if( lux<0 || (lux==0 && ((rgb_state >> BH_1750_ERR) & 1U)))     
     {
@@ -196,7 +198,7 @@ void ReadBH1750(struct writeControl *tx) {
       }
     }
     else if(lux == 0)
-      (*tx).lux = lux;
+      (*tx).lux = luxMeanFilter.AddValue(lux);
   }
 #if SERIAL_DEBUG && BH_DEBUG
   Serial.print("**************Lux: ");
@@ -252,7 +254,6 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   int32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
   float voltage_v = 0;
   float slope = 0, intercept = 0;
-  float std_dev = meanFilter.GetStdDev();
 
   //Calculate Slope and Intercept as a function of 0% moisture voltage (v0) and 50% moisture voltage (v05) 
   slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
@@ -263,8 +264,6 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
 #if SERIAL_DEBUG && SOIL_DEBUG
   Serial.print("*******Inst. Volt.********");
   Serial.println(instant_voltage_mv);
-  Serial.print("*******Std. Dev.********");
-  Serial.println(std_dev);
   Serial.print("*******Voltage_mv********");
   Serial.println(voltage_mv);
   Serial.print("Slope: "); Serial.println(slope);
@@ -283,7 +282,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
     return;
   }
 
-  voltage_mv = meanFilter.AddValue(instant_voltage_mv);
+  voltage_mv = soilMeanFilter.AddValue(instant_voltage_mv);
   
   voltage_v = (float)voltage_mv/1000;
 
@@ -373,4 +372,34 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
     Serial.println("Stoped watering");
 #endif
   }
+}
+bool read_htu21(void)
+{
+   auxTemp = htu.readTemperature();
+   auxHumidity = htu.readHumidity();
+   if(!isnan(auxTemp) && !isnan(auxHumidity))
+   {
+      return true;
+   }
+   else
+   {
+      uint8_t htu_tries = 0;
+      while (!htu.begin() && htu_tries < 5) 
+      {
+      #if SERIAL_DEBUG && HTU_DEBUG
+         Serial.println("Error initialising HTU21");
+      #endif
+         htu_tries++;
+         rgb_state |= 1UL << HTU21_ERR;
+      }
+      if (htu_tries < 5)
+      {
+      #if SERIAL_DEBUG && BH_DEBUG
+         Serial.println("HTU21 began");
+      #endif
+         rgb_state &= ~(1UL << HTU21_ERR);
+      }
+      htu_tries = 0;
+      return false;
+   }
 }

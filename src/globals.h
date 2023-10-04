@@ -2,7 +2,7 @@
 #define GLOBALS_H
 #include <Arduino.h>
 #include "fb_mgmt.h"
-
+#include "Adafruit_HTU21DF.h"
 #define V0_SOIL 101
 #define V05_SOIL 151
 
@@ -23,6 +23,8 @@
 #define HTU21_SENSE_PERIOD       30000
 /*Global RGB state timer*/
 extern TimerHandle_t xRgbTimer;
+/*HTU21 object*/
+extern Adafruit_HTU21DF htu;//HTU21 sensor object    
 /*Auto soil calib points*/
 extern uint32_t v0;
 extern uint32_t v05;

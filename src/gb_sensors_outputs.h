@@ -26,5 +26,9 @@ void PhotoPeriod( struct readControl *rx, struct writeControl *tx , int currentH
 /*Analog soil test */
 /*******************/
 void analogSoilRead(struct readControl *rx, struct writeControl *tx);
+/**************************************************/
+/*Reads temperature and humidity from SHT31 sensor*/
+/**************************************************/
+bool read_htu21(void);
 
 #endif
