@@ -9,7 +9,7 @@
 #define WIFI_CONN     1
 #define NO_WIFI_CRED  2
 #define NO_USER       3
-#define SHT31_ERR     4
+#define HTU21_ERR     4
 #define RTC_ERR       5
 #define SOIL_ERR      6
 #define BH_1750_ERR   7

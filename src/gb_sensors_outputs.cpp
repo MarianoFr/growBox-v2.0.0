@@ -23,7 +23,7 @@ void TemperatureHumidityHandling ( struct readControl *rx, struct writeControl *
   { //TODO alarm sensor not working
     if ( (*rx).temperatureControl ) 
     {
-      if ((rgb_state >> SHT31_ERR) & 1U)
+      if ((rgb_state >> HTU21_ERR) & 1U)
       {
             return;
       }
@@ -278,7 +278,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   {    
     return;
   }
-  if(((rgb_state >> BH_1750_ERR) & 1U) && ((rgb_state >> SHT31_ERR) & 1U))//disconnected
+  if(((rgb_state >> BH_1750_ERR) & 1U) && ((rgb_state >> HTU21_ERR) & 1U))//disconnected
   {
     return;
   }
