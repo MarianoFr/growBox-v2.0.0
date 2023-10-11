@@ -379,6 +379,12 @@ bool read_htu21(void)
    auxHumidity = htu.readHumidity();
    if(!isnan(auxTemp) && !isnan(auxHumidity))
    {
+    #if SERIAL_DEBUG && HTU_DEBUG
+      Serial.print("Temperature: ");
+      Serial.println(auxTemp);
+      Serial.print("Humidity: ");
+      Serial.println(auxHumidity);      
+    #endif
       return true;
    }
    else
@@ -394,7 +400,7 @@ bool read_htu21(void)
       }
       if (htu_tries < 5)
       {
-      #if SERIAL_DEBUG && BH_DEBUG
+      #if SERIAL_DEBUG && HTU_DEBUG
          Serial.println("HTU21 began");
       #endif
          rgb_state &= ~(1UL << HTU21_ERR);
