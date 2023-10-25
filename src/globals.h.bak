@@ -59,7 +59,7 @@ struct writeControl {
   String ESPtag;/*where current time is loaded*/
   bool humidityControlOn = false;
   bool temperatureControlOn = false;
-  float humidity  = 100;
+  float humidity  = 25;
   bool lights = false;
   float lux = 0;
   bool soil = false;/*true means wet ground*/

@@ -69,9 +69,9 @@ uint32_t espTagPeriod = 5 * 60000;
 uint32_t previousEspTag = 0;
 uint32_t previousWrite = 0;
 static writeControl tx;
-uint8_t ntp_retry = 0;
-uint32_t v0 = 3129;
-uint32_t v05 = 2300;
+uint8_t retry = 0;
+uint32_t v0 = 0;
+uint32_t v05 = 0;
 
 /***********************************
  * RTC alerts
@@ -303,8 +303,8 @@ void setup()
   }
   htu_tries = 0;
 
-  //v0 = EEPROM.readUInt(V0_SOIL);
-  //v05 = EEPROM.readUInt(V05_SOIL);
+  v0 = EEPROM.readUInt(V0_SOIL);
+  v05 = EEPROM.readUInt(V05_SOIL);
 
   if (checkWiFiCredentials())
   {
@@ -314,7 +314,7 @@ void setup()
         Two parameters are necessary: the firebase_url and the firebase_API_key*/
       rgb_state |= 1UL << NO_USER;
       Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-      Firebase.reconnectWiFi(true);
+      Firebase.reconnectWiFi(false);
       /*Set database read timeout to 1 minute (max 15 minutes)*/
       Firebase.setReadTimeout(firebaseData2, 1000 * 60);
       /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
@@ -340,9 +340,9 @@ void setup()
       path = gbs + String(users_uid);
       /*Init the NTP library*/
       configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-      while (!getLocalTime(&currentTime) && (ntp_retry < NTP_RETRY))
+      while (!getLocalTime(&currentTime) && (retry < NTP_RETRY))
       {
-        ntp_retry++;
+        retry++;
       }
       currentHour = currentTime.tm_hour;
 #if USE_RTC
@@ -437,14 +437,7 @@ void loop()
     if ((currentHour == 4 || ((rgb_state >> RTC_ERR) & 1U)) & ~(rtc_calibrated))
     {
       rtc_calibrated = true;
-      bool ok = false;
-      ntp_retry = 0;
-      while (!ok && (ntp_retry < NTP_RETRY))
-      {
-        ok = getLocalTime(&now);
-        ntp_retry++;
-      }
-      if (!ok)
+      if (!getLocalTime(&now))
       {
 #if SERIAL_DEBUG && TIME_DEBUG
         Serial.println("getLocalTime Error");

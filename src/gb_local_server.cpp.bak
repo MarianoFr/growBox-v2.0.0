@@ -160,20 +160,19 @@ bool checkWiFiCredentials() {
 /**************************************************************/
 bool connectWifi() {
   uint8_t t = 0;
-  WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
   uint8_t res = 0;
- /*  while(t<5)
-  { */
+  while(t<3)
+  {
   #if SERIAL_DEBUG && WIFI_DEBUG
     Serial.println("****WiFi connecting");
   #endif
     WiFi.begin(ssidc, passwordc);
-    res = WiFi.waitForConnectResult(60000);
-    /* if(res == WL_CONNECTED)
-      t=5;
-    t++; */
- // }
+    res = WiFi.waitForConnectResult(10000);
+    if(res == WL_CONNECTED)
+      t=3;
+    t++;
+  }
   if(res != WL_CONNECTED)
   {
     rgb_state |= (1UL << WIFI_DISC);
@@ -181,7 +180,6 @@ bool connectWifi() {
   #if SERIAL_DEBUG && WIFI_DEBUG
     Serial.println("****WiFi failed");
   #endif
-    WiFi.disconnect(true);
    return false;
   }
 #if SERIAL_DEBUG && WIFI_DEBUG
@@ -231,25 +229,10 @@ void wiFiTasks( void * pvParameters ) {
       {
       #if SERIAL_DEBUG && FIRE_DEBUG
         Serial.println("Updating dashboard!!");
-        Serial.println(tx.temperature);
-        Serial.println(tx.humidity);
-        Serial.println(tx.lux);
-        Serial.println(tx.soilMoisture);
       #endif
         FirebaseJson dashBoard;
         write2FireBase( &tx, &dashBoard );
-        if(Firebase.updateNode(firebaseData2, path + "/dashboard/", dashBoard))
-        {
-        #if SERIAL_DEBUG && FIRE_DEBUG
-          Serial.println("Successfully updated dashboard!!");
-        #endif
-        }
-        else
-        {
-        #if SERIAL_DEBUG && FIRE_DEBUG
-          Serial.println("Failed to update dashboard!!");
-        #endif
-        }
+        Firebase.updateNode(firebaseData2, path + "/dashboard/", dashBoard);
         if(!((rgb_state >> NO_USER) & 1U))
         {
           Firebase.setInt(firebaseData2, path + "/control/RGBState", rgb_state);

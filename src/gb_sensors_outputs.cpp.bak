@@ -375,7 +375,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
 #if SERIAL_DEBUG && WATERING_DEBUG
     Serial.println("Stoped watering");
 #endif
-  } */
+  }*/
 }
 bool read_htu21(void)
 {
