@@ -160,7 +160,7 @@ bool checkWiFiCredentials() {
 /**************************************************************/
 bool connectWifi() {
   uint8_t t = 0;
-  WiFi.disconnect(true);
+  WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   uint8_t res = 0;
  /*  while(t<5)
@@ -168,22 +168,27 @@ bool connectWifi() {
   #if SERIAL_DEBUG && WIFI_DEBUG
     Serial.println("****WiFi connecting");
   #endif
-    WiFi.begin(ssidc, passwordc);
-    res = WiFi.waitForConnectResult(60000);
-    /* if(res == WL_CONNECTED)
-      t=5;
-    t++; */
+    res = WiFi.begin(ssidc, passwordc);
+    if(res == WL_CONNECT_FAILED)
+    {
+      rgb_state |= (1UL << WIFI_DISC);
+      rgb_state &= ~(1UL << WIFI_CONN);
+    #if SERIAL_DEBUG && WIFI_DEBUG
+      Serial.println("****WiFi failed");
+    #endif
+      WiFi.disconnect();
+      return false;
+    }
+    while(WiFi.status() != WL_CONNECTED)
+    {
+      vTaskDelay(30000/portTICK_RATE_MS);
+      res = WiFi.status();
+      Serial.println(res);
+      if(res == WL_CONNECT_FAILED)
+        res = WiFi.begin(ssidc, passwordc);
+    }
  // }
-  if(res != WL_CONNECTED)
-  {
-    rgb_state |= (1UL << WIFI_DISC);
-    rgb_state &= ~(1UL << WIFI_CONN);
-  #if SERIAL_DEBUG && WIFI_DEBUG
-    Serial.println("****WiFi failed");
-  #endif
-    WiFi.disconnect(true);
-   return false;
-  }
+  
 #if SERIAL_DEBUG && WIFI_DEBUG
   Serial.println("****WiFi connected");
 #endif

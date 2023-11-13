@@ -71,7 +71,7 @@ uint32_t previousWrite = 0;
 static writeControl tx;
 uint8_t ntp_retry = 0;
 uint32_t v0 = 3129;
-uint32_t v05 = 2300;
+uint32_t v05 = 2200;
 
 /***********************************
  * RTC alerts

@@ -6,7 +6,8 @@
 #define MIN_SOIL_VOLT_RANGE_MV 1500
 #define MAX_INST_VOLT_DIF      3150
 #define SOIL_MEAN_WINDOW_SIZE  20
-#define LUX_MEAN_WINDOW_SIZE  20
+#define LUX_MEAN_WINDOW_SIZE   20
+#define WATER_TRIES            5 
 /*Light sensor*/
 BH1750 lightMeter(0x23);
 MeanFilter<float> luxMeanFilter(LUX_MEAN_WINDOW_SIZE);
@@ -248,15 +249,14 @@ void PhotoPeriod( struct readControl *rx, struct writeControl *tx , int currentH
 void analogSoilRead(struct readControl *rx, struct writeControl *tx)
 {
   bool stopWater1 = false;
-  static unsigned long wateringDelay = 10000;//3*60000; //En Milisegundos
+  static unsigned long wateringDelay = 3*60000; //En Milisegundos
   static unsigned long manualWateringStart = 0;
   static int32_t voltage_mv = 0;//the bigger the reading, the drier the ground
   int32_t instant_voltage_mv = 0;//the bigger the reading, the drier the ground
   float voltage_v = 0;
   float slope = 0, intercept = 0;
   static bool auto_water = false;
-  static bool first = true;
-
+  static uint8_t water_count = 0;
   //Calculate Slope and Intercept as a function of 0% moisture voltage (v0) and 50% moisture voltage (v05) 
   slope = -0.5*((((float)v0/1000)-0.02*nmbr_outputs)/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
   intercept = 0.5*(1/(1-(((float)v0/1000)-0.02*nmbr_outputs)/(((float)v05/1000)-0.02*nmbr_outputs)));
@@ -325,21 +325,38 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
   (*tx).soilMoisture = constrain((*tx).soilMoisture, 0, 100);
   rgb_state &= ~(1UL << SOIL_ERR);
 
+  if(rgb_state >> SOIL_ERR & 1U)
+  {
+  #if SERIAL_DEBUG && SOIL_DEBUG
+    Serial.print("Soil moisture not changing");
+  #endif
+    return;
+  }
+
+  if(water_count > WATER_TRIES)
+  {
+    rgb_state |= 1UL << SOIL_ERR;
+    digitalWrite(W_VLV_PIN, HIGH);//cierra válvula
+    (*tx).watering = false;
+    return;
+  }
+
   if ( (*rx).automaticWatering ) {
     /*Compare with set point*/
     if ( (*tx).soilMoisture < (*rx).soilMoistureSet - 5) {
-      if (!(*tx).watering && (((unsigned long)(current - manualWateringStart) > 2*wateringDelay) || first)) {
-        first = false;
-        auto_water = true;//digitalWrite(W_VLV_PIN, LOW);//abre válvula
-        //(*tx).watering = true;
+      if (!(*tx).watering && (((unsigned long)(current - manualWateringStart) > 2*wateringDelay) || water_count == 0)) {
+        auto_water = true;
         (*tx).soil = false;
+        water_count++;
       }
     }
-    if ( (*tx).soilMoisture > ((*rx).soilMoistureSet) + 1 ) {
+    if ( (*tx).soilMoisture > ((*rx).soilMoistureSet) ) {
       if ((*tx).watering) {
+        water_count = 0;
         digitalWrite(W_VLV_PIN, HIGH);//cierra válvula
         (*tx).watering = false;
         (*tx).soil = true;
+        auto_water = false;
       }
     }
   }
@@ -359,6 +376,7 @@ void analogSoilRead(struct readControl *rx, struct writeControl *tx)
         digitalWrite(W_VLV_PIN, HIGH);//cierra valvula
         (*tx).watering = false;
         (*rx).water = false;
+        water_count = 0;
 #if SERIAL_DEBUG && WATERING_DEBUG
         Serial.println("Stoped watering");
 #endif
