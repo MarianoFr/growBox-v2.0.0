@@ -127,7 +127,7 @@ static void RGBalert(TimerHandle_t xTimer)
       blue = 0;
 #if SERIAL_DEBUG && RGB_DEBUG
       Serial.println("Rojo");
-      Serial.println("NO_WIFI_CRED"); // Verde a tope
+      Serial.println("NO_WIFI_CRED"); 
 #endif
       analogWrite(PIN_GREEN, green);
       analogWrite(PIN_BLUE, blue);
@@ -343,6 +343,7 @@ void setup()
       while (!getLocalTime(&currentTime) && (ntp_retry < NTP_RETRY))
       {
         ntp_retry++;
+        vTaskDelay(1000/portTICK_PERIOD_MS);
       }
       currentHour = currentTime.tm_hour;
 #if USE_RTC

@@ -181,9 +181,9 @@ bool connectWifi() {
     }
     while(WiFi.status() != WL_CONNECTED)
     {
-      vTaskDelay(30000/portTICK_RATE_MS);
+      vTaskDelay(1000/portTICK_RATE_MS);
       res = WiFi.status();
-      Serial.println(res);
+      debounceWiFiReset();
       if(res == WL_CONNECT_FAILED)
         res = WiFi.begin(ssidc, passwordc);
     }
