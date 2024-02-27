@@ -4,7 +4,8 @@
         "typeinfo": "cpp",
         "cmath": "cpp",
         "cstdlib": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "nvs_storage.h": "c"
     },
     "idf.portWin": "COM6",
     "cmake.configureOnOpen": false
