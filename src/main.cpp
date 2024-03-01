@@ -12,12 +12,8 @@
 #include "freertos/task.h"
 
 #include "esp_system.h"
-#include "esp_wifi.h"
-#include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-#include "lwip/err.h"
-#include "lwip/sys.h"
 
 #include "wifi_utils.h"
 #include "wifi_task.h"
@@ -27,9 +23,6 @@
 #include "data_types.h"
 
 static const char *TAG = "**MAIN**";
-
-// Enabling C++ compile
-extern "C" { void app_main(); }
 
 extern TaskHandle_t wiFiHandler;
 extern TaskHandle_t outputsHandler;
@@ -74,7 +67,7 @@ class Button
     
       if(state == 0xff00)
       {
-        ESP_LOGI(TAG_B, "Button pressed");       
+        ESP_LOGI(TAG, "Button pressed");       
       }   
       return (state == 0xff00);
     }
@@ -195,8 +188,7 @@ void setup() {
             1                                       /* Core where the task should run */
         );  
     }
-    else
-    {
+    else {
         ESP_LOGI(TAG, "Creating serverTask");
         xTaskCreatePinnedToCore(
             serverTask,    /* Function to implement the task */

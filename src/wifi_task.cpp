@@ -37,20 +37,25 @@ void wifiTask(void* pvParameters) {
     uint8_t fb_retry = 0;
     uint8_t res = 0;
     bool fb_status = false;
+
     ESP_LOGI(TAG, "wifiTask initialized");
+
     local_wifi_rgb_state &= ~(1UL << NO_WIFI_CRED);
-    res = WiFi.begin(wifi_ssid, wifi_pass);
+
+    res = WiFi.begin("casita", "TINTAYBELLA");
+    ESP_LOGI(TAG, "Began WiFi with ssid: %s and pass: %s", wifi_ssid, wifi_pass);
     while(WiFi.status() != WL_CONNECTED) {
-        vTaskDelay(1000/portTICK_RATE_MS);
-        res = WiFi.status();
-        if(res == WL_CONNECT_FAILED)
-            res = WiFi.begin(wifi_ssid, wifi_pass);
+        vTaskDelay(10/portTICK_RATE_MS);
+        
     }
     ESP_LOGI(TAG, "WiFi connected");
+    vTaskDelay(2000/portTICK_RATE_MS);
     xTaskNotifyGive( outputsHandler );
     xTaskNotifyGive( samplingHandler );
+
     local_wifi_rgb_state |= (1UL << WIFI_CONN);
     local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
+
     fb_status = gb_firebase_init();
     while(!fb_status && fb_retry < 3) {
         fb_retry++;
@@ -74,15 +79,15 @@ void wifiTask(void* pvParameters) {
 			task_stack_free_saved = task_stack_free;
 			ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
 		}        
-        if(xEventGroupGetBits(s_wifi_event_group) & WIFI_CONNECTED_BIT) {
+        if(WiFi.status() == WL_CONNECTED) {
             local_wifi_rgb_state |= (1UL << WIFI_CONN);
             local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
             if(fb_status) {
                 if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
-                    fb_update_sensor(&sensor_data_1);
+                    fb_status = fb_update_sensor(&sensor_data_1);
                 }
                 if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
-                    fb_update_control(&control_data);
+                    fb_status = fb_update_control(&control_data);
                     if(fb_status)//Notify control update, water control involved
                         xTaskNotify(outputsHandler,1,eNoAction);
                     else

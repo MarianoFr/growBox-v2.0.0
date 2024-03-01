@@ -30,8 +30,6 @@ extern "C" {
 
 #define SERVER_PORT 80
 #define URI_STRING "/"
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT BIT1
 
 #define ESP_WIFI_SSID      "growbox"
 #define ESP_WIFI_PASS      "greenforyou"

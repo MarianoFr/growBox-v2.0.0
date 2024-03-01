@@ -162,7 +162,7 @@ void streamCallback(MultiPathStreamData data) {
         }
     }
     if(xQueueSend(FB2outputs, &rx, 10/portTICK_PERIOD_MS) != pdTRUE) {
-        ESP_LOGI(FBCB_TAG, "Failed to update");
+        ESP_LOGI("**FBCB**", "Failed to update");
         xQueueReceive(FB2outputs, &control_data_dummy, 10/portTICK_PERIOD_MS);
         xQueueSend(FB2outputs, &rx, 10/portTICK_PERIOD_MS);
     }
@@ -290,6 +290,7 @@ bool gb_firebase_init( void ) {
 
     sprintf(gb_connected_path, "/users/%02X:%02X:%02X:%02X:%02X:%02X/GBconnected/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
+    ESP_LOGI("**FB**", "Path to user connected %s", gb_connected_path);
     Firebase.setBool(firebaseData2, gb_connected_path, true);
     sprintf(gb_connected_path, "/users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);

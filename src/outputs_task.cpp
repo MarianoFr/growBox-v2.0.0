@@ -43,8 +43,7 @@ uint8_t water_toggle_cnt      = 0;
 /***********************************
  * Init RGB led driver
  ***********************************/
-static void rgb_ledc_init(void)
-{
+static void rgb_ledc_init(void) {
     // Prepare and then apply the LEDC PWM timer configuration
     ledc_timer_config_t ledc_timer = {
         .speed_mode       = LEDC_MODE,
@@ -255,10 +254,13 @@ static void RGBalert(TimerHandle_t xTimer) {
 }
 
 static bool in_range(int low, int high, int x) {
+
     return ((x-high)*(x-low) <= 0);
+
 }
 
 static bool update_control( rx_control_update_t* update_rx_data ) {
+
     bool res = false;
     ESP_LOGI(TAG, "Update control %d", update_rx_data->var_2_update);  
     if ((update_rx_data->var_2_update >> UPDT_AUTO_WATER) & 1U) {
@@ -491,9 +493,11 @@ static void control_temperature( ) {
             }
         }  
     }    
+
 }
 
 static void control_humity( ) {
+
     if( rx_data.humidity_control ) {
       if(rx_data.humidity_control_high) {
         if ( (sensor_data_2.humidity > (rx_data.humidity_set + HUMIDITY_HISTERESIS)) && !curr_tx_data.humidity_on ) {
@@ -565,15 +569,18 @@ static void control_humity( ) {
             }
         }
     }
+
 }
 
 
 static void single_water_tmr_cb(TimerHandle_t xTimer) {
+
     gpio_set_level((gpio_num_t)W_VLV_PIN, 1);//water off
     ESP_LOGI(TAG, "Water Off");
     rx_data.water = false;
     curr_tx_data.water_on = false;
     if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+
 }
 
 static void water_tmr_cb(TimerHandle_t xTimer) {
@@ -593,7 +600,8 @@ static void water_tmr_cb(TimerHandle_t xTimer) {
         curr_tx_data.water_on = true;
         if (++out_nmbr_outputs > 4) out_nmbr_outputs = 4;
         watering = true;
-    }  
+    }
+
 }
 
 static void control_soil( ) {
@@ -644,9 +652,11 @@ static void control_soil( ) {
         curr_tx_data.water_on = false;
         configASSERT( xTimerStart(xSingleWaterTimer,pdMS_TO_TICKS(1)) );
     }
+
 }
 
 static esp_err_t gpio_start() {
+
     esp_err_t res = ESP_OK;
     gpio_config_t io_conf = {};
 
@@ -674,6 +684,7 @@ static esp_err_t gpio_start() {
     //configure GPIO with the given settings
     res = gpio_config(&io_conf);
     return res;
+
 }
 
 void outputsTask ( void* pvParameters ) {
@@ -687,6 +698,7 @@ void outputsTask ( void* pvParameters ) {
 
     rgb_ledc_init( );
     outputs_rgb_state |= 1UL << RTC_ERR;
+    
     xRgbTimer = xTimerCreate("RGB timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
     configASSERT(xRgbTimer);
     configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));

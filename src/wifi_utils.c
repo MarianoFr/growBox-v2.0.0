@@ -51,8 +51,6 @@ static int s_retry_num = 0;
 
 static httpd_handle_t http_server_instance = NULL; // Pntr to server object
 
-EventGroupHandle_t s_wifi_event_group;
-
 extern TaskHandle_t outputsHandler;
 extern TaskHandle_t wiFiHandler;
 extern TaskHandle_t samplingHandler;
