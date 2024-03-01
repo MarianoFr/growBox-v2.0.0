@@ -36,6 +36,24 @@ QueueHandle_t wifiRgbState;
 QueueHandle_t samplerRgbState;
 QueueHandle_t outputs2sampler;
 
+tx_sensor_data_t sensor_data_1 = {
+    .temperature    = 0,
+    .humidity      = 0,
+    .soil_humidity = 0,
+    .lux            = 0,
+};
+
+tx_control_data_t control_data = {
+    .lights_on = false,
+	.temperature_on = false,
+    .humidity_on = false,
+    .water_on = false,
+};
+
+rgb_state_t local_wifi_rgb_state = (1UL << WIFI_DISC);
+bool fb_status = false;
+bool no_credentials = false;
+
 extern char wifi_ssid[];
 extern char wifi_pass[];
 
@@ -129,33 +147,7 @@ bool queues_init( void ) {
     return true;
 }
 
-void setup() {
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-#if DEBUG_ERASE
-    ESP_LOGI(TAG, "Debug errasing nvs storage");
-    nvs_erase_storage();
-    while(1) {
-        vTaskDelay(1);
-    }
-#endif
-
-    // Set timezone to China Standard Time
-    setenv("TZ", GB_TIME_ZONE, 1);
-    tzset();
-
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    if(queues_init()) {
-        ESP_LOGI(TAG, "Queues created");
-    } else {
-        ESP_LOGI(TAG, "Failed to create queues");
-    }
+bool create_tasks() {
     if(nvs_read_wifi_creds(wifi_ssid, wifi_pass)) {
         ESP_LOGI(TAG, "Retrieved WiFi credentials");
         //TODO: after performance-check, decide if task should run on different cores
@@ -186,7 +178,8 @@ void setup() {
             SAMPLER_TASK_PRIORITY,                  /* Priority of the task */
             &samplingHandler,                       /* Task handle. */
             1                                       /* Core where the task should run */
-        );  
+        );
+        return true;
     }
     else {
         ESP_LOGI(TAG, "Creating serverTask");
@@ -198,18 +191,82 @@ void setup() {
             WIFI_TASK_PRIORITY,            /* Priority of the task */
             &wiFiHandler, /* Task handle. */
             1              /* Core where the task should run */
-        );    
-    }    
+        );
+        return false;
+    }
+}
+
+void setup() {
+    //Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+#if DEBUG_ERASE
+    ESP_LOGI(TAG, "Debug errasing nvs storage");
+    nvs_erase_storage();
+    while(1) {
+        vTaskDelay(1);
+    }
+#endif
+
+    // Set timezone to China Standard Time
+    setenv("TZ", GB_TIME_ZONE, 1);
+    tzset();
+
+    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    if(queues_init()) {
+        ESP_LOGI(TAG, "Queues created");
+    } else {
+        ESP_LOGI(TAG, "Failed to create queues");
+    }
+
+    no_credentials = create_tasks();  
+     
 }
 
 void loop() {
 
-    if( wifi_res_butt.debounce( ) ) {
-        nvs_erase_wifi_creds( );
-        ESP_LOGI(TAG, "WiFi errased, reset ESP32");
-        vTaskDelay(10);
-        esp_restart( );
-    }
-    vTaskDelay(1);
+    if(no_credentials) {
 
+        if( wifi_res_butt.debounce( ) ) {
+            nvs_erase_wifi_creds( );
+            ESP_LOGI(TAG, "WiFi errased, reset ESP32");
+            vTaskDelay(10);
+            esp_restart( );
+        }
+        
+        static UBaseType_t task_stack_free_saved = -1;
+            UBaseType_t task_stack_free = uxTaskGetStackHighWaterMark( NULL );
+            if( task_stack_free_saved != task_stack_free ) { 
+                task_stack_free_saved = task_stack_free;
+                ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
+            }        
+            if(WiFi.status() == WL_CONNECTED) {
+                local_wifi_rgb_state |= (1UL << WIFI_CONN);
+                local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
+                if(fb_status) {
+                    if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
+                        fb_status = fb_update_sensor(&sensor_data_1);
+                    }
+                    if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
+                        fb_status = fb_update_control(&control_data);
+                        if(fb_status)//Notify control update, water control involved
+                            xTaskNotify(outputsHandler,1,eNoAction);
+                        else
+                            xTaskNotify(outputsHandler,2,eNoAction);//Failed to update
+                    }
+                }
+            }
+            else {
+                //TODO: is it is necessary to reconnect wifi? or is it is already solved automatically by api
+                local_wifi_rgb_state |= (1UL << WIFI_DISC);
+                local_wifi_rgb_state &= ~(1UL << WIFI_CONN);
+            }
+            xQueueSend(wifiRgbState, &local_wifi_rgb_state, 10/portTICK_PERIOD_MS);
+            vTaskDelay(1);
+    }
 }

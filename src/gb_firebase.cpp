@@ -288,11 +288,11 @@ bool gb_firebase_init( void ) {
     /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
     Firebase.setwriteSizeLimit(firebaseData2, "medium");
 
-    sprintf(gb_connected_path, "/users/%02X:%02X:%02X:%02X:%02X:%02X/GBconnected/",mac_base[0]
+    sprintf(gb_connected_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/GBconnected/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     ESP_LOGI("**FB**", "Path to user connected %s", gb_connected_path);
     Firebase.setBool(firebaseData2, gb_connected_path, true);
-    sprintf(gb_connected_path, "/users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
+    sprintf(gb_connected_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     start_uid_fetch = millis();
     if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {

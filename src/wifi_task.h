@@ -12,6 +12,8 @@
 #include "nvs.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+//Arduino headers
+#include "WiFi.h"
 //my headers
 #include "app_config.h"
 #include "data_types.h"

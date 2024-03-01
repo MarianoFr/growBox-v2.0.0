@@ -1,5 +1,5 @@
 #include "wifi_task.h"
-
+FirebaseData firebaseData3;
 TaskHandle_t wiFiHandler;
 extern TaskHandle_t outputsHandler;
 extern TaskHandle_t samplingHandler;
@@ -41,8 +41,9 @@ void wifiTask(void* pvParameters) {
     ESP_LOGI(TAG, "wifiTask initialized");
 
     local_wifi_rgb_state &= ~(1UL << NO_WIFI_CRED);
-
-    res = WiFi.begin("casita", "TINTAYBELLA");
+    WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    res = WiFi.begin("Moviles", "yaguarete96");
     ESP_LOGI(TAG, "Began WiFi with ssid: %s and pass: %s", wifi_ssid, wifi_pass);
     while(WiFi.status() != WL_CONNECTED) {
         vTaskDelay(10/portTICK_RATE_MS);
@@ -50,6 +51,14 @@ void wifiTask(void* pvParameters) {
     }
     ESP_LOGI(TAG, "WiFi connected");
     vTaskDelay(2000/portTICK_RATE_MS);
+
+    Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+    Firebase.reconnectWiFi(true);
+    Firebase.setReadTimeout(firebaseData3, 1000 * 60);
+    /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
+    Firebase.setwriteSizeLimit(firebaseData3, "medium");
+    Firebase.setBool(firebaseData3, "users/7C:9E:BD:66:32:2C/GBconnected/", true);
+    vTaskDelay(10000/portTICK_PERIOD_MS);
     xTaskNotifyGive( outputsHandler );
     xTaskNotifyGive( samplingHandler );
 
