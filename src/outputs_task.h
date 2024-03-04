@@ -2,10 +2,12 @@
 #define OUTPUTS_TASK_H
 //Standard headers
 #include <stdio.h>
+#include <time.h>
 //FreeRTOS headers
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/queue.h"
 //esp-idf headers
 #include "esp_system.h"
 #include "esp_log.h"
@@ -15,8 +17,9 @@
 #include "app_config.h"
 #include "data_types.h"
 #include "nvs_storage.h"
-#include "gb_firebase.h"
 #include "board.h"
+
+#include <ESP32Time.h>
 
 #define UPDT_AUTO_WATER     0
 #define UPDT_HUM_CTRL_H     1

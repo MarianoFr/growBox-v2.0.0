@@ -2,6 +2,8 @@
 
 TaskHandle_t outputsHandler;
 
+extern ESP32Time rtc;
+
 extern QueueHandle_t FB2outputs;
 extern QueueHandle_t sensors2outputs;
 extern QueueHandle_t outputs2FB;
@@ -419,11 +421,11 @@ static void control_lights( ) {
 static void control_temperature( ) {
 
     if ( rx_data.temperature_control ) {
-        if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
-            gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//TEMP_CTRL_OUTPUT off if HTU error
-            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
-            return;
-        }
+        // if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
+        //     gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//TEMP_CTRL_OUTPUT off if HTU error
+        //     if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+        //     return;
+        // }
         if(rx_data.temperature_control_high) {
             if ( (sensor_data_2.temperature > (rx_data.temperature_set)) && !curr_tx_data.temperature_on ) {
                 gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 0);//temperatureControlOn on
@@ -691,8 +693,7 @@ void outputsTask ( void* pvParameters ) {
 
     rx_control_update_t rx_data_update;
     uint8_t control_variables_status = WAIT_VARIABLES_FROM_FB;
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
+    tm now;
 
     ESP_ERROR_CHECK(gpio_start());
 
@@ -736,9 +737,8 @@ void outputsTask ( void* pvParameters ) {
 
     for ( ; ; ) {
 
-        time(&now);
-        localtime_r(&now, &timeinfo);
-        current_hour = timeinfo.tm_hour;
+        now = rtc.getTimeStruct();
+        current_hour = now.tm_hour;
 
         if(xQueueReceive(FB2outputs, &rx_data_update, 10/portTICK_PERIOD_MS) == pdTRUE) {
             ESP_LOGD(TAG, "New cotrol data received from FB");

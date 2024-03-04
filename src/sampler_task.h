@@ -13,7 +13,7 @@
 #include "data_types.h"
 #include "board.h"
 
-#define DELAY_TIME_BETWEEN_ITEMS_MS 60000 /*!< delay time between different test items */
+#define DELAY_TIME_BETWEEN_ITEMS_MS 10000 /*!< delay time between different test items */
 
 #define ADC_READ_LEN         256
 #define ADC_CONV_MODE        ADC_CONV_SINGLE_UNIT_1

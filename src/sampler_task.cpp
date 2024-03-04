@@ -29,22 +29,16 @@ float auxLux = 0;
 /***************************************************************/
 // Reads light intensity and updates it in the Data Base, also //
 /***************************************************************/
-bool ReadBH1750( void ) {
+bool read_BH1750( void ) {
 
     float reading = 0;
     static uint8_t tries = 0;
     if (lightMeter.measurementReady()) {
         reading = lightMeter.readLightLevel();
-        #if SERIAL_DEBUG && BH_DEBUG
-            Serial.print("****lus****");
-            Serial.println(lux);
-            #endif 
         if( reading < 0 ) {
             tries++;
             if(tries>4) {
-                #if SERIAL_DEBUG && BH_DEBUG
-                Serial.print("****RetryingLux****");
-                #endif 
+                ESP_LOGI(TAG, "****RetryingLux****");
                 lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE);              
                 tries=0;                
             }
@@ -53,40 +47,25 @@ bool ReadBH1750( void ) {
     }
     else
         return false;
-    #if SERIAL_DEBUG && BH_DEBUG
-    Serial.print("**************Lux: ");
-    Serial.println(lux);
-    #endif
     auxLux = luxMeanFilter.AddValue(reading);
     return true;
-
 }
 
 bool read_htu21( void ) {
 
    auxTemp = htu.readTemperature();
    auxHumidity = htu.readHumidity();
-   if(!isnan(auxTemp) && !isnan(auxHumidity)) {        
-    #if SERIAL_DEBUG && HTU_DEBUG
-        Serial.print("Temperature: ");
-        Serial.println(auxTemp);
-        Serial.print("Humidity: ");
-        Serial.println(auxHumidity);      
-    #endif
+   if(!isnan(auxTemp) && !isnan(auxHumidity)) { 
         return true;
     }
     else {
         uint8_t htu_tries = 0;
         while (!htu.begin() && htu_tries < 5) {
-        #if SERIAL_DEBUG && HTU_DEBUG
-            Serial.println("Error initialising HTU21");
-        #endif
+            ESP_LOGI(TAG, "Error initialising HTU21");
             htu_tries++;
         }
         if (htu_tries < 5) {
-        #if SERIAL_DEBUG && HTU_DEBUG
-            Serial.println("HTU21 began");
-        #endif
+            ESP_LOGI(TAG, "HTU21 began");
         }
         htu_tries = 0;
         return false;
@@ -118,17 +97,12 @@ void bh1750_init() {
     uint8_t bh1750_tries = 0;
     while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5)) {
         local_sampler_rgb_state |= 1UL << BH1750_ERR;
-    #if SERIAL_DEBUG && BH_DEBUG
-        Serial.println(rgb_state);
-        Serial.println("Error initialising BH1750");
-    #endif
+        ESP_LOGI(TAG, "Error initialising BH1750");
         vTaskDelay(10/portTICK_PERIOD_MS);
         bh1750_tries++;
     }
     if (bh1750_tries < 5) {
-    #if SERIAL_DEBUG && BH_DEBUG
-        Serial.println("BH1750 Advanced begin");
-    #endif
+        ESP_LOGI(TAG, "BH1750 Advanced begin");
         local_sampler_rgb_state &= ~(1UL << BH1750_ERR);
     }
     bh1750_tries = 0;
@@ -139,17 +113,13 @@ void htu21_init() {
     
     uint8_t htu_tries = 0;
     while (!htu.begin() && htu_tries < 5) {
-    #if SERIAL_DEBUG && HTU_DEBUG
-        Serial.println("Error initialising HTU21");
-    #endif
+        ESP_LOGI(TAG, "Error initialising HTU21");
         vTaskDelay(10/portTICK_PERIOD_MS);
         htu_tries++;
         local_sampler_rgb_state |= 1UL << HTU21_ERR;
     }
     if (htu_tries < 5) {
-    #if SERIAL_DEBUG && BH_DEBUG
-        Serial.println("HTU21 began");
-    #endif
+        ESP_LOGI(TAG,"HTU21 began");
         local_sampler_rgb_state &= ~(1UL << HTU21_ERR);
     }
     htu_tries = 0;
@@ -179,8 +149,8 @@ void samplerTask ( void* pvParameters ) {
         strftime(sensor_data.esp_tag, 20, "%Y-%m-%d %X", &timeinfo);
         ESP_LOGD(TAG, "ESP tag: %s", sensor_data.esp_tag);
 
-        if(ReadBH1750()) {
-            sensor_data.lux == auxLux;
+        if(read_BH1750()) {
+            sensor_data.lux = auxLux;
             local_sampler_rgb_state &= ~(1UL << BH1750_ERR);
         } else
             local_sampler_rgb_state |= (1UL << BH1750_ERR);
@@ -193,7 +163,8 @@ void samplerTask ( void* pvParameters ) {
             local_sampler_rgb_state |= 1UL << HTU21_ERR;
 
         sensor_data.soil_humidity = get_mean_soil_moisture();
-        //printf("Temperature: %.02f°C\nHumidity: %.02f%%\nSoil moisture: %d%%\n", temp, humidity, sensor_data.soil_humidity);
+        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %.02fSoil moisture: %d%%\n", 
+            sensor_data.temperature, sensor_data.humidity, sensor_data.lux, sensor_data.soil_humidity);
 
         xQueueSend(sensors2FB, &sensor_data, 1/portTICK_PERIOD_MS);
         xQueueSend(sensors2outputs, &sensor_data, 1/portTICK_PERIOD_MS);

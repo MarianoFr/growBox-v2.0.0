@@ -19,7 +19,6 @@
 #include "data_types.h"
 #include "nvs_storage.h"
 #include "wifi_utils.h"
-#include "gb_firebase.h"
 #include "board.h"
 
 void wifiTask(void* pvParameters);

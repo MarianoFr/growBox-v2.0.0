@@ -6,6 +6,7 @@
 #define configOUTPUTS_STACK_SIZE   20*1024
 
 #define GB_TIME_ZONE               "WST+3"
+#define NTP_RETRY 3
 
 #define WIFI_TASK_PRIORITY         6
 #define OUTPUTS_TASK_PRIORITY      4

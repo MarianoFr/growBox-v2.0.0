@@ -9,8 +9,8 @@ extern "C" {
 #define DEBUG_ERASE         0
 #define DEBUG_CTRL_VARS_MEM 0
 
-#define DEBUG_SSID  "casita"//"Moviles"//"Redmi9"//"casita"
-#define DEBUG_PASS  "TINTAYBELLA"//"yaguarete96"//"TINTAYBELLA"
+#define DEBUG_SSID  "Moviles"//"Moviles"//"Redmi9"//"casita"
+#define DEBUG_PASS  "yaguarete96"//"yaguarete96"//"TINTAYBELLA"
 
 #ifdef __cplusplus
 }

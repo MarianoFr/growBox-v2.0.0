@@ -6,27 +6,48 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include <iostream>
+#include <Arduino.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <iostream>
 
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-
 #include "wifi_utils.h"
-#include "wifi_task.h"
 #include "outputs_task.h"
 #include "sampler_task.h"
 #include "nvs_storage.h"
 #include "data_types.h"
+
+#include <ESP32Time.h>
+#include "FirebaseESP32.h"
+#include "WiFi.h"
+
+/*FireBase authentification values*/
+#define FIREBASE_HOST "growbox-350914-default-rtdb.firebaseio.com" //Do not include https:// in FIREBASE_HOST nor the last slash /
+#define FIREBASE_AUTH "ZpsPdhWPAb2BMlsWiP9YmdujC8LINDnrVNfSxWAP"
+#define UID_FETCH_TO  15*1000
+
+/*Declare the Firebase Data object in the global scope*/
+FirebaseData firebaseData2;
+FirebaseData firebaseData1;
+
+//Paths to firebase for multi stream
+String childPath[15] = {"/TempCtrlHigh","/HumCtrlHigh","/TemperatureControl","/HumidityControl", "/AutomaticWatering",
+                        "/HumidityOffHour", "/HumidityOnHour", "/TemperatureOffHour", "/TemperatureOnHour",
+                        "/HumiditySet", "/OffHour", "/OnHour", "/SoilMoistureSet",
+                        "/TemperatureSet", "/Water"
+                       };
+char path_to_dashboard[100];
+char user_uid[50];
 
 static const char *TAG = "**MAIN**";
 
 extern TaskHandle_t wiFiHandler;
 extern TaskHandle_t outputsHandler;
 extern TaskHandle_t samplingHandler;
+
+ESP32Time rtc;
 
 QueueHandle_t sensors2FB;
 QueueHandle_t sensors2outputs;
@@ -53,9 +74,279 @@ tx_control_data_t control_data = {
 rgb_state_t local_wifi_rgb_state = (1UL << WIFI_DISC);
 bool fb_status = false;
 bool no_credentials = false;
+uint8_t fb_retry = 0;
+uint8_t res = 0;
 
 extern char wifi_ssid[];
 extern char wifi_pass[];
+
+/*******************************
+ Update variables from FireBase
+*******************************/
+void streamCallback(MultiPathStreamData data) {
+    rx_control_update_t control_data_dummy;
+    rx_control_update_t control_update_data;
+    control_update_data.var_2_update = 0;
+    for (size_t i = 0; i < 15; i++) {
+        if (data.get(childPath[i])) {
+            if (data.dataPath == "/TempCtrlHigh") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());            
+                if (data.value == "true")
+                    control_update_data.control_data.temperature_control_high = true;
+                else
+                    control_update_data.control_data.temperature_control_high = false;
+                control_update_data.var_2_update |= 1UL << UPDT_TEMP_CTRL_H;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.temperature_control_high);        
+            } else if (data.dataPath == "/HumCtrlHigh") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());         
+                if (data.value == "true")
+                    control_update_data.control_data.humidity_control_high = true;
+                else
+                    control_update_data.control_data.humidity_control_high = false;
+                control_update_data.var_2_update |= 1UL << UPDT_HUM_CTRL_H;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.humidity_control_high);        
+            } else if (data.dataPath == "/HumidityControl") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                 
+                if (data.value == "true")
+                    control_update_data.control_data.humidity_control = true;
+                else
+                    control_update_data.control_data.humidity_control = false;
+                control_update_data.var_2_update |= 1UL << UPDT_HUM_CTRL_ON;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.humidity_control);        
+            } else if (data.dataPath == "/TemperatureControl") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                    
+                if (data.value == "true")
+                    control_update_data.control_data.temperature_control = true;
+                else
+                    control_update_data.control_data.temperature_control = false;
+                control_update_data.var_2_update |= 1UL << UPDT_TEMP_CTRL_ON;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.temperature_control);            
+            } else if (data.dataPath == "/AutomaticWatering") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());        
+                if (data.value == "true")
+                    control_update_data.control_data.automatic_watering = true;
+                else
+                    control_update_data.control_data.automatic_watering = false;
+                control_update_data.var_2_update |= 1UL << UPDT_AUTO_WATER;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.automatic_watering);        
+            } else if (data.dataPath == "/HumidityOffHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                
+                control_update_data.control_data.humidity_off_hour = data.value.toInt();
+                control_update_data.var_2_update |= 1UL << UPDT_HUM_OFF_HR;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.humidity_off_hour);            
+            } else if (data.dataPath == "/HumidityOnHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());        
+                control_update_data.control_data.humidity_on_hour = data.value.toInt();
+                control_update_data.var_2_update |= 1UL << UPDT_HUM_ON_HR;
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.humidity_on_hour);            
+            } else if (data.dataPath == "/TemperatureOffHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());      
+                control_update_data.control_data.temperature_off_hour = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.temperature_off_hour);  
+                control_update_data.var_2_update |= 1UL << UPDT_TEMP_OFF_HR;
+            } else if (data.dataPath == "/TemperatureOnHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());        
+                control_update_data.control_data.temperature_on_hour = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.temperature_on_hour);
+                control_update_data.var_2_update |= 1UL << UPDT_TEMP_ON_HR;
+            } else if (data.dataPath == "/HumiditySet") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());              
+                control_update_data.control_data.humidity_set = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.humidity_set);
+                control_update_data.var_2_update |= 1UL << UPDT_HUM_SET;
+            } else if (data.dataPath == "/OffHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());        
+                control_update_data.control_data.lights_off_hour = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.lights_off_hour);
+                control_update_data.var_2_update |= 1UL << UPDT_LIGHTS_OFF_HR;
+            } else if (data.dataPath == "/OnHour") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());               
+                control_update_data.control_data.lights_on_hour = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.lights_on_hour);
+                control_update_data.var_2_update |= 1UL << UPDT_LIGHTS_ON_HR;
+            } else if (data.dataPath == "/SoilMoistureSet") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                
+                control_update_data.control_data.soil_moisture_set = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.soil_moisture_set);
+                control_update_data.var_2_update |= 1UL << UPDT_SOIL_SET;
+            } else if (data.dataPath == "/TemperatureSet") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                 
+                control_update_data.control_data.temperature_set = data.value.toInt();
+                ESP_LOGI(TAG, "%d", control_update_data.control_data.temperature_set);
+                control_update_data.var_2_update |= 1UL << UPDT_TEMP_SET;      
+            } else if (data.dataPath == "/Water") {
+                ESP_LOGI(TAG, "%s",data.dataPath.c_str());                 
+                if (data.value == "true")
+                    control_update_data.control_data.water = true;
+                else
+                    control_update_data.control_data.water = false;
+                control_update_data.var_2_update |= 1UL << UPDT_WATER_ON;
+            }
+        }
+    }
+    if(xQueueSend(FB2outputs, &control_update_data, 10/portTICK_PERIOD_MS) != pdTRUE) {
+        ESP_LOGI("**FBCB**", "Failed to update");
+        xQueueReceive(FB2outputs, &control_data_dummy, 10/portTICK_PERIOD_MS);
+        xQueueSend(FB2outputs, &control_update_data, 10/portTICK_PERIOD_MS);
+    }
+  return;
+
+}
+
+//Global function that notifies when stream connection lost
+//The library will resume the stream connection automatically
+void streamTimeoutCallback(bool timeout) {
+  if (timeout) {
+    //Stream timeout occurred
+    ESP_LOGI(TAG, "Stream timeout, resume streaming...");  
+  }
+}
+
+/*******************************
+  Update variables in FireBase
+*******************************/
+void write2FBSensor (tx_sensor_data_t *sensor, FirebaseJson *dashBoard) {
+  //FirebaseJson json;
+  (*dashBoard).add("ESPtag", String((*sensor).esp_tag));
+  (*dashBoard).add("Humidity", (*sensor).humidity);
+  (*dashBoard).add("Temperature", (*sensor).temperature);
+  (*dashBoard).add("Lux", (*sensor).lux);
+  (*dashBoard).add("SoilMoisture", (*sensor).soil_humidity);
+  //dashBoard->add(json);
+}
+
+/*******************************
+  Update variables in FireBase
+*******************************/
+void write2FBControl (tx_control_data_t *control, FirebaseJson *dashBoard) {
+  FirebaseJson json;
+  (*dashBoard).add("HumidityControlOn", (*control).humidity_on);
+  (*dashBoard).add("TemperatureControlOn", (*control).temperature_on);
+  (*dashBoard).add("Lights", (*control).lights_on);
+  (*dashBoard).add("Watering", (*control).water_on);
+  //dashBoard->add(json);
+}
+
+bool fb_update_sensor(tx_sensor_data_t *sensor) {
+    
+    bool res = false;
+    FirebaseJson dashBoard;
+    write2FBSensor( sensor, &dashBoard );
+    ESP_LOGI(TAG, "%s", dashBoard.raw());
+    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard)) {    
+        res = true;
+    }
+    else {        
+        res = false;
+    }
+    return res;
+
+}
+
+bool fb_update_water() {
+
+    char path_to_water[70];
+    bool res = false;
+    sprintf(path_to_water, "/growboxs/%s/control/Water", user_uid);
+    if(Firebase.setBool(firebaseData2, path_to_water, false))
+        res = true;
+
+    return res;    
+}
+
+bool fb_update_control(tx_control_data_t *control_data) {
+    
+    bool res = false;
+    FirebaseJson dashBoard;
+    write2FBControl( control_data, &dashBoard );
+        
+    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard)) {
+        res = true;
+    }
+    else {
+        res = false;
+    }
+    return res;
+
+}
+
+bool gb_firebase_init( void ) {
+
+    unsigned char mac_base[6] = {0};
+    char gb_connected_path[50];    
+    unsigned long start_uid_fetch = 0;
+    tm now;
+    struct tm timeinfo = { 0 };
+    char esp_frst_conn_path[100];
+    int nmbr_rst = 0;    
+    char nmbr_rst_char[50];
+    char esp_frst_conn[50];
+    char nmbr_rst_path[100];
+    
+    esp_efuse_mac_get_default(mac_base);
+    
+    Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+    Firebase.reconnectWiFi(true);
+    Firebase.setReadTimeout(firebaseData2, 1000 * 60);
+    /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
+    Firebase.setwriteSizeLimit(firebaseData2, "medium");
+
+    sprintf(gb_connected_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/GBconnected/",mac_base[0]
+            ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
+    ESP_LOGI("**FB**", "Path to user connected %s", gb_connected_path);
+    Firebase.setBool(firebaseData2, gb_connected_path, true);
+    sprintf(gb_connected_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
+            ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
+    
+    start_uid_fetch = millis();
+    if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
+        vTaskDelay(1000/portTICK_PERIOD_MS);
+        if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
+            vTaskDelay(1000/portTICK_PERIOD_MS);
+            if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
+                Firebase.setString(firebaseData2, gb_connected_path, "NULL");
+                //rgb_state |= 1UL << NO_USER;//TODO: specify these by returning false?
+                sprintf(user_uid, "%s", "NULL");
+            }
+        }
+    }
+    while (strcmp(user_uid, "NULL") == 0 || (millis() - start_uid_fetch < UID_FETCH_TO)) {
+        Firebase.getString(firebaseData2, gb_connected_path, user_uid);
+        //debounceWiFiReset();//TODO: constantly run debounce on task? timer on main task?
+        vTaskDelay(pdMS_TO_TICKS(1000/portTICK_PERIOD_MS));
+    }
+
+    if(strcmp(user_uid, "NULL") == 0) {
+        ESP_LOGI("**FB**", "User is NULL");
+        return false;
+    }
+       
+
+    //Get number of resets and increase
+    sprintf(nmbr_rst_path, "/growboxs/%s/dashboard/NmbrResets",user_uid);
+    Firebase.getInt(firebaseData2, nmbr_rst_path, &nmbr_rst);
+    nmbr_rst++;
+    Firebase.setInt(firebaseData2, nmbr_rst_path, nmbr_rst);
+
+    //Set first connection
+    now = rtc.getTimeStruct();
+    strftime(esp_frst_conn, 20, "%Y-%m-%d %X", &now);
+    sprintf(esp_frst_conn_path, "/growboxs/%s/dashboard/FirstConnection", user_uid);
+    Firebase.setString(firebaseData2, esp_frst_conn_path, esp_frst_conn);
+
+    sprintf(path_to_dashboard, "/growboxs/%s/dashboard", user_uid);
+    sprintf(gb_connected_path, "/growboxs/%s/control", user_uid);    
+    ESP_LOGI("**FB**", "Path to control %s", gb_connected_path);
+    if(!Firebase.beginMultiPathStream(firebaseData1, gb_connected_path, childPath, sizeof(childPath))) {
+        ESP_LOGI("**FB**", "Couldnt begin stream");
+        return false;
+    }
+//  Firebase.setStreamTaskStackSize(20000);
+    Firebase.setMultiPathStreamCallback(firebaseData1, streamCallback, streamTimeoutCallback);
+
+    return true;
+
+}
 
 class Button
 {
@@ -151,16 +442,6 @@ bool create_tasks() {
     if(nvs_read_wifi_creds(wifi_ssid, wifi_pass)) {
         ESP_LOGI(TAG, "Retrieved WiFi credentials");
         //TODO: after performance-check, decide if task should run on different cores
-        //Should wifi run on a different core than the rest of the tasks?
-        xTaskCreatePinnedToCore(
-            wifiTask,                               /* Function to implement the task */
-            "wifiTask",                             /* Name of the task */
-            configWIFI_STACK_SIZE/sizeof(size_t),   /* Stack size in words */
-            NULL,                                   /* Task input parameter */
-            WIFI_TASK_PRIORITY,                     /* Priority of the task */
-            &wiFiHandler,                           /* Task handle. */
-            1                                       /* Core where the task should run */
-        );
         xTaskCreatePinnedToCore(
             outputsTask,                            /* Function to implement the task */
             "outputsTask",                          /* Name of the task */
@@ -179,21 +460,30 @@ bool create_tasks() {
             &samplingHandler,                       /* Task handle. */
             1                                       /* Core where the task should run */
         );
-        return true;
-    }
-    else {
-        ESP_LOGI(TAG, "Creating serverTask");
-        xTaskCreatePinnedToCore(
-            serverTask,    /* Function to implement the task */
-            "serverTask",  /* Name of the task */
-            configWIFI_STACK_SIZE/sizeof(size_t),        /* Stack size in words */
-            NULL,         /* Task input parameter */
-            WIFI_TASK_PRIORITY,            /* Priority of the task */
-            &wiFiHandler, /* Task handle. */
-            1              /* Core where the task should run */
-        );
         return false;
     }
+    else
+        return true;
+}
+
+bool synch_time() {
+
+    const char *ntpServer = "pool.ntp.org";
+    const long gmtOffset_sec = -10800;
+    const int daylightOffset_sec = 0;
+    struct tm currentTime;
+    uint8_t ntp_retry = 0;
+    /*Init the NTP library*/
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    while (!getLocalTime(&currentTime) && (ntp_retry < NTP_RETRY)) {
+        ntp_retry++;
+        vTaskDelay(1000/portTICK_PERIOD_MS);
+    }
+    if(ntp_retry >= NTP_RETRY)
+        return false;
+    rtc.setTime(currentTime.tm_sec, currentTime.tm_min, currentTime.tm_hour, currentTime.tm_mday, currentTime.tm_mon + 1, currentTime.tm_year + 1900);
+    return true;
+
 }
 
 void setup() {
@@ -217,20 +507,52 @@ void setup() {
     setenv("TZ", GB_TIME_ZONE, 1);
     tzset();
 
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     if(queues_init()) {
         ESP_LOGI(TAG, "Queues created");
     } else {
         ESP_LOGI(TAG, "Failed to create queues");
     }
 
-    no_credentials = create_tasks();  
-     
+    no_credentials = create_tasks();
+    
+    if(!no_credentials) {
+        local_wifi_rgb_state &= ~(1UL << NO_WIFI_CRED);
+        WiFi.disconnect();
+        WiFi.mode(WIFI_STA);
+        res = WiFi.begin(wifi_ssid, wifi_pass);
+        ESP_LOGI(TAG, "Began WiFi with ssid: %s and pass: %s", wifi_ssid, wifi_pass);
+        while(WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(10/portTICK_RATE_MS);            
+        }
+        ESP_LOGI(TAG, "WiFi connected");
+        vTaskDelay(10/portTICK_RATE_MS);        
+        while(!synch_time());
+        local_wifi_rgb_state |= (1UL << WIFI_CONN);
+        local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
+        
+        fb_status = gb_firebase_init();
+        while(!fb_status && fb_retry < 3) {
+            fb_retry++;
+            fb_status = gb_firebase_init();
+        }
+        fb_retry = 0;
+        if(fb_status) {
+            xTaskNotifyGive( outputsHandler );
+            xTaskNotifyGive( samplingHandler );
+            ESP_LOGI(TAG, "FireBase initialized");
+            local_wifi_rgb_state &= ~(1UL << NO_USER);
+        }
+        else {
+            ESP_LOGI(TAG, "FireBase init failed");
+            local_wifi_rgb_state |= (1UL << NO_USER);
+        }
+    }
+
 }
 
 void loop() {
 
-    if(no_credentials) {
+    if(!no_credentials) {
 
         if( wifi_res_butt.debounce( ) ) {
             nvs_erase_wifi_creds( );
@@ -250,6 +572,9 @@ void loop() {
                 local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
                 if(fb_status) {
                     if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
+                        ESP_LOGI(TAG, "Received sensor data to push");
+                        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %.02f\nSoil moisture: %d%%\n", 
+                            sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
                         fb_status = fb_update_sensor(&sensor_data_1);
                     }
                     if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
@@ -268,5 +593,14 @@ void loop() {
             }
             xQueueSend(wifiRgbState, &local_wifi_rgb_state, 10/portTICK_PERIOD_MS);
             vTaskDelay(1);
+    }
+    else {
+        ESP_LOGI(TAG, "serverTask initialized");
+        local_wifi_rgb_state |= (1UL << NO_WIFI_CRED);
+        nvs_erase_wifi_creds( );
+        wifi_init_softap( );
+        for ( ; ; ) {
+            vTaskDelay(1);
+        }
     }
 }
