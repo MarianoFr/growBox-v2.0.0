@@ -11,7 +11,7 @@ Adafruit_HTU21DF htu = Adafruit_HTU21DF();//HTU21 sensor object
 /*Light sensor*/
 #define LUX_MEAN_WINDOW_SIZE   20
 BH1750 lightMeter(0x23);
-MeanFilter<float> luxMeanFilter(LUX_MEAN_WINDOW_SIZE);
+MeanFilter<uint32_t> luxMeanFilter(LUX_MEAN_WINDOW_SIZE);
 
 TaskHandle_t samplingHandler;
 
@@ -24,17 +24,17 @@ SemaphoreHandle_t print_mux = NULL;
 uint8_t nmbr_outputs = 0;
 float auxTemp = 0;
 float auxHumidity = 0;
-float auxLux = 0;
+uint32_t auxLux = 0;
 
 /***************************************************************/
 // Reads light intensity and updates it in the Data Base, also //
 /***************************************************************/
 bool read_BH1750( void ) {
 
-    float reading = 0;
+    uint32_t reading = 0;
     static uint8_t tries = 0;
     if (lightMeter.measurementReady()) {
-        reading = lightMeter.readLightLevel();
+        reading = (uint32_t)lightMeter.readLightLevel();
         if( reading < 0 ) {
             tries++;
             if(tries>4) {
@@ -163,7 +163,7 @@ void samplerTask ( void* pvParameters ) {
             local_sampler_rgb_state |= 1UL << HTU21_ERR;
 
         sensor_data.soil_humidity = get_mean_soil_moisture();
-        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %.02fSoil moisture: %d%%\n", 
+        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
             sensor_data.temperature, sensor_data.humidity, sensor_data.lux, sensor_data.soil_humidity);
 
         xQueueSend(sensors2FB, &sensor_data, 1/portTICK_PERIOD_MS);

@@ -13,6 +13,7 @@ extern QueueHandle_t samplerRgbState;
 extern QueueHandle_t outputs2sampler;
 
 static TimerHandle_t xRgbTimer;
+static TimerHandle_t xOutputsTimer;
 static TimerHandle_t xSingleWaterTimer;
 static TimerHandle_t xWaterTimer;
 
@@ -33,6 +34,8 @@ uint8_t out_nmbr_outputs      = 0;
 
 bool water_error              = false;
 uint8_t water_toggle_cnt      = 0;
+
+uint8_t control_variables_status = WAIT_VARIABLES_FROM_FB;
 
 #define LEDC_TIMER              LEDC_TIMER_0
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
@@ -375,13 +378,15 @@ static bool update_control( rx_control_update_t* update_rx_data ) {
 
 static void control_lights( ) {
 
-    if ( ( rx_data.lights_off_hour == rx_data.lights_on_hour || 
+    if ( rx_data.lights_off_hour == rx_data.lights_on_hour || 
          ( rx_data.lights_off_hour == 24 && rx_data.lights_on_hour == 0 ) ||
-         ( rx_data.lights_off_hour == 0 && rx_data.lights_on_hour == 24 ) ) && curr_tx_data.lights_on ) {
-        gpio_set_level((gpio_num_t)LIGHTS, 1);//lights off
-        ESP_LOGI(TAG, "Lights OFF");
-        curr_tx_data.lights_on = false;
-        if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+         ( rx_data.lights_off_hour == 0 && rx_data.lights_on_hour == 24 )  ) {
+        if(curr_tx_data.lights_on) {
+            gpio_set_level((gpio_num_t)LIGHTS, 1);//lights off
+            ESP_LOGI(TAG, "Lights OFF");
+            curr_tx_data.lights_on = false;
+            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+        }
         return;
     }
 
@@ -421,11 +426,11 @@ static void control_lights( ) {
 static void control_temperature( ) {
 
     if ( rx_data.temperature_control ) {
-        // if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
-        //     gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//TEMP_CTRL_OUTPUT off if HTU error
-        //     if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
-        //     return;
-        // }
+        if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
+            gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//TEMP_CTRL_OUTPUT off if HTU error
+            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+            return;
+        }
         if(rx_data.temperature_control_high) {
             if ( (sensor_data_2.temperature > (rx_data.temperature_set)) && !curr_tx_data.temperature_on ) {
                 gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 0);//temperatureControlOn on
@@ -459,12 +464,14 @@ static void control_temperature( ) {
         /*Analize temperature's period*/
         if ( ( rx_data.temperature_off_hour == rx_data.temperature_on_hour ||
              ( rx_data.temperature_off_hour == 24 && rx_data.temperature_on_hour == 0 ) ||
-             ( rx_data.temperature_off_hour == 0 && rx_data.temperature_on_hour == 24 ) ) && curr_tx_data.temperature_on) {
-            
-            gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//temperatureControl off
-            ESP_LOGI(TAG, "Temperature OFF");
-            curr_tx_data.temperature_on = false;
-            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+             ( rx_data.temperature_off_hour == 0 && rx_data.temperature_on_hour == 24 ) ) ) {
+            if(curr_tx_data.temperature_on) {
+                gpio_set_level((gpio_num_t)TEMP_CTRL_OUTPUT, 1);//temperatureControl off
+                ESP_LOGI(TAG, "Temperature OFF");
+                curr_tx_data.temperature_on = false;
+                if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+            }
+            return;
         }
         else if ( rx_data.temperature_off_hour > rx_data.temperature_on_hour ) {
             if ( (current_hour >= rx_data.temperature_on_hour) && (current_hour < rx_data.temperature_off_hour) && !curr_tx_data.temperature_on ) {
@@ -501,6 +508,11 @@ static void control_temperature( ) {
 static void control_humity( ) {
 
     if( rx_data.humidity_control ) {
+        if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
+            gpio_set_level((gpio_num_t)HUM_CTRL_OUTPUT, 1);//TEMP_CTRL_OUTPUT off if HTU error
+            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+            return;
+        }
       if(rx_data.humidity_control_high) {
         if ( (sensor_data_2.humidity > (rx_data.humidity_set + HUMIDITY_HISTERESIS)) && !curr_tx_data.humidity_on ) {
           gpio_set_level((gpio_num_t)HUM_CTRL_OUTPUT, 0);//humidity_control on
@@ -533,12 +545,14 @@ static void control_humity( ) {
     else {
         if ( ( rx_data.humidity_off_hour == rx_data.humidity_on_hour ||
              ( rx_data.humidity_off_hour == 24 && rx_data.humidity_on_hour == 0 ) ||
-             ( rx_data.humidity_off_hour == 0 && rx_data.humidity_on_hour == 24 ) ) && curr_tx_data.humidity_on ) {
-
-            gpio_set_level((gpio_num_t)HUM_CTRL_OUTPUT, 1);//humidity_control off
-            ESP_LOGI(TAG, "Humidity OFF");
-            curr_tx_data.humidity_on = false;
-            if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+             ( rx_data.humidity_off_hour == 0 && rx_data.humidity_on_hour == 24 ) ) ) {
+            if( curr_tx_data.humidity_on ) {
+                gpio_set_level((gpio_num_t)HUM_CTRL_OUTPUT, 1);//humidity_control off
+                ESP_LOGI(TAG, "Humidity OFF");
+                curr_tx_data.humidity_on = false;
+                if (--out_nmbr_outputs < 0) out_nmbr_outputs = 0;
+            }
+            return;
         }
 
         else if ( rx_data.humidity_off_hour > rx_data.humidity_on_hour ) {
@@ -689,10 +703,20 @@ static esp_err_t gpio_start() {
 
 }
 
+void outputs_control(TimerHandle_t xTimer) {
+
+    if(control_variables_status != WAIT_VARIABLES_FROM_FB) {
+            control_lights( );
+            control_temperature( );
+            control_humity( );
+            control_soil( );
+        }
+
+}
+
 void outputsTask ( void* pvParameters ) {
 
-    rx_control_update_t rx_data_update;
-    uint8_t control_variables_status = WAIT_VARIABLES_FROM_FB;
+    rx_control_update_t rx_data_update;    
     tm now;
 
     ESP_ERROR_CHECK(gpio_start());
@@ -703,6 +727,10 @@ void outputsTask ( void* pvParameters ) {
     xRgbTimer = xTimerCreate("RGB timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RGBalert);
     configASSERT(xRgbTimer);
     configASSERT(xTimerStart(xRgbTimer, 10 / portTICK_PERIOD_MS));
+
+    xOutputsTimer = xTimerCreate("Outputs timer", 500 / portTICK_PERIOD_MS, pdTRUE, (void *)0, outputs_control);
+    configASSERT(xOutputsTimer);
+    configASSERT(xTimerStart(xOutputsTimer, 10 / portTICK_PERIOD_MS));
 
     xSingleWaterTimer = xTimerCreate( "Single water timer", pdMS_TO_TICKS(WATERING_DELAY), pdFALSE, ( void * ) 0, single_water_tmr_cb );
     configASSERT( xSingleWaterTimer );
@@ -752,12 +780,12 @@ void outputsTask ( void* pvParameters ) {
         if(xQueueReceive(sensors2outputs, &sensor_data_2, 10/portTICK_PERIOD_MS) == pdTRUE) {
             ESP_LOGD(TAG, "New sensor data received from sampler");
         }
-        if(control_variables_status != WAIT_VARIABLES_FROM_FB) {
-            control_lights( );
-            control_temperature( );
-            control_humity( );
-            control_soil( );
-        }        
+        // if(control_variables_status != WAIT_VARIABLES_FROM_FB) {
+        //     control_lights( );
+        //     control_temperature( );
+        //     control_humity( );
+        //     control_soil( );
+        // }        
         if(curr_tx_data.lights_on != prev_tx_data.lights_on
             || curr_tx_data.temperature_on != prev_tx_data.temperature_on
             || curr_tx_data.humidity_on != prev_tx_data.humidity_on

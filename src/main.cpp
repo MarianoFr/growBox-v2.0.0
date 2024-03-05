@@ -573,7 +573,7 @@ void loop() {
                 if(fb_status) {
                     if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
                         ESP_LOGI(TAG, "Received sensor data to push");
-                        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %.02f\nSoil moisture: %d%%\n", 
+                        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
                             sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
                         fb_status = fb_update_sensor(&sensor_data_1);
                     }
