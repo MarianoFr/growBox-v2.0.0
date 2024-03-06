@@ -738,15 +738,33 @@ void outputsTask ( void* pvParameters ) {
     xWaterTimer = xTimerCreate( "Water timer", pdMS_TO_TICKS(WATERING_DELAY), pdTRUE, ( void * ) 0, water_tmr_cb );
     configASSERT( xWaterTimer );
 
-#if !DEBUG_CTRL_VARS_MEM
     control_variables_status = nvs_read_control_variables(&rx_data);
-#endif
+
     switch(control_variables_status) {
         case WAIT_VARIABLES_FROM_FB:
             ESP_LOGI(TAG, "WAIT_VARIABLES_FROM_FB");
             break;
         case VARIABLES_OK:
             ESP_LOGI(TAG, "VARIABLES_OK");
+#if DEBUG_CTRL_VARS_MEM
+            ESP_LOGI(TAG, "AutoWater: %s\nHumCtrlHg: %s\n" 
+            "HumidityCtrl: %s\nHumidityOffHr: %d\n"
+            "HumidityOnHr: %d\nHumSet:%d\n"
+            "LightsOffHr: %d\nLightsOnHr: %d\n"
+            "SoilSet: %d\nTempCtrlHg: %s\n"
+            "TempCtrl: %s\nTempOffHr: %d\n"
+            "TempOnHr: %d\nTempSet: %d\n"
+            "Water: %s",rx_data.automatic_watering ? "true" : "false",
+            rx_data.humidity_control_high ? "true":"false",
+            rx_data.humidity_control ? "true":"false",
+            rx_data.humidity_off_hour, rx_data.humidity_on_hour,
+            rx_data.humidity_set, rx_data.lights_off_hour,
+            rx_data.lights_on_hour, rx_data.soil_moisture_set,
+            rx_data.temperature_control_high ? "true":"false",
+            rx_data.temperature_control ? "true":"false",
+            rx_data.temperature_off_hour, rx_data.temperature_on_hour,
+            rx_data.temperature_set, rx_data.water ? "true":"false");
+#endif
             break;
         case ERROR_READING_MEM:
             //TODO: solve error nvs mem
@@ -780,7 +798,7 @@ void outputsTask ( void* pvParameters ) {
         if(xQueueReceive(sensors2outputs, &sensor_data_2, 10/portTICK_PERIOD_MS) == pdTRUE) {
             ESP_LOGD(TAG, "New sensor data received from sampler");
         }
-            
+
         if(curr_tx_data.lights_on != prev_tx_data.lights_on
             || curr_tx_data.temperature_on != prev_tx_data.temperature_on
             || curr_tx_data.humidity_on != prev_tx_data.humidity_on

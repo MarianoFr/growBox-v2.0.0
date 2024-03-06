@@ -47,7 +47,7 @@ uint8_t nvs_read_control_variables( rx_control_data_t* rx_data ) {
             break;
         case ESP_ERR_NVS_NOT_FOUND:
             ESP_LOGI(TAG,"CONTROL_DATA NOT WRITTEN\n");
-            res = VARIABLES_OK;
+            res = WAIT_VARIABLES_FROM_FB;
             break;
         default :
             ESP_LOGI(TAG,"ERROR READ_CONTROL_DATA\n");
@@ -55,28 +55,7 @@ uint8_t nvs_read_control_variables( rx_control_data_t* rx_data ) {
             break;
     }
     nvs_close(my_handle);
-#if DEBUG_CTRL_VARS_MEM
-    ESP_LOGI(TAG, "AutoWater: %s\nHumCtrlHg: %s\n" 
-    "HumidityCtrl: %s\nHumidityOffHr: %d\n"
-    "HumidityOnHr: %d\nHumSet:%d\n"
-    "LightsOffHr: %d\nLightsOnHr: %d\n"
-    "SoilSet: %d\nTempCtrlHg: %s\n"
-    "TempCtrl: %s\nTempOffHr: %d\n"
-    "TempOnHr: %d\nTempSet: %d\n"
-    "Water: %s",rx_data->automatic_watering ? "true" : "false",
-    rx_data->humidity_control_high ? "true":"false",
-    rx_data->humidity_control ? "true":"false",
-    rx_data->humidity_off_hour, rx_data->humidity_on_hour,
-    rx_data->humidity_set, rx_data->lights_off_hour,
-    rx_data->lights_on_hour, rx_data->soil_moisture_set,
-    rx_data->temperature_control_high ? "true":"false",
-    rx_data->temperature_control ? "true":"false",
-    rx_data->temperature_off_hour, rx_data->temperature_on_hour,
-    rx_data->temperature_set, rx_data->water ? "true":"false");
-    while(1) {
-        vTaskDelay(1);
-    }
-#endif
+
     return res;
 }
 
