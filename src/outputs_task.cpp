@@ -780,12 +780,7 @@ void outputsTask ( void* pvParameters ) {
         if(xQueueReceive(sensors2outputs, &sensor_data_2, 10/portTICK_PERIOD_MS) == pdTRUE) {
             ESP_LOGD(TAG, "New sensor data received from sampler");
         }
-        // if(control_variables_status != WAIT_VARIABLES_FROM_FB) {
-        //     control_lights( );
-        //     control_temperature( );
-        //     control_humity( );
-        //     control_soil( );
-        // }        
+            
         if(curr_tx_data.lights_on != prev_tx_data.lights_on
             || curr_tx_data.temperature_on != prev_tx_data.temperature_on
             || curr_tx_data.humidity_on != prev_tx_data.humidity_on

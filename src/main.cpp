@@ -219,12 +219,12 @@ void write2FBSensor (tx_sensor_data_t *sensor, FirebaseJson *dashBoard) {
   Update variables in FireBase
 *******************************/
 void write2FBControl (tx_control_data_t *control, FirebaseJson *dashBoard) {
-  FirebaseJson json;
-  (*dashBoard).add("HumidityControlOn", (*control).humidity_on);
-  (*dashBoard).add("TemperatureControlOn", (*control).temperature_on);
-  (*dashBoard).add("Lights", (*control).lights_on);
-  (*dashBoard).add("Watering", (*control).water_on);
-  //dashBoard->add(json);
+
+    (*dashBoard).add("HumidityControlOn", (*control).humidity_on);
+    (*dashBoard).add("TemperatureControlOn", (*control).temperature_on);
+    (*dashBoard).add("Lights", (*control).lights_on);
+    (*dashBoard).add("Watering", (*control).water_on);
+
 }
 
 bool fb_update_sensor(tx_sensor_data_t *sensor) {
@@ -258,6 +258,10 @@ bool fb_update_control(tx_control_data_t *control_data) {
     
     bool res = false;
     FirebaseJson dashBoard;
+    char path_to_water[100];
+
+    sprintf(path_to_water, "/growboxs/%s/control/Water/", user_uid); 
+
     write2FBControl( control_data, &dashBoard );
         
     if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard)) {
@@ -266,6 +270,9 @@ bool fb_update_control(tx_control_data_t *control_data) {
     else {
         res = false;
     }
+    if(!(*control_data).water_on)
+        Firebase.setBool(firebaseData2, path_to_water, false);
+
     return res;
 
 }
