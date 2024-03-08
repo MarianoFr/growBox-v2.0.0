@@ -21,6 +21,78 @@ void nvs_open_storage( ) {
     }
 }
 
+static bool in_range(int low, int high, int x) {
+
+    return ((x-high)*(x-low) <= 0);
+
+}
+
+static bool check_variables( rx_control_data_t* control_data ) {
+
+    bool res = false;
+    if(in_range(0, 1, (int)control_data->automatic_watering)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 1, (int)control_data->humidity_control_high)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 1, (int)control_data->humidity_control)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->humidity_off_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->humidity_on_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 100, control_data->humidity_set)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->lights_off_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->lights_on_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 50, control_data->soil_moisture_set)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 1, control_data->temperature_control_high)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 1, control_data->temperature_control)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->temperature_off_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 24, control_data->temperature_on_hour)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 40, control_data->temperature_set)) {
+        res = true;
+    } else
+        return false;
+    if(in_range(0, 1, control_data->water)) {
+        res = true;
+    } else
+        return false;
+    return res;
+}
+
 uint8_t nvs_read_control_variables( rx_control_data_t* rx_data ) {
     // Read
     esp_err_t err;
@@ -43,7 +115,10 @@ uint8_t nvs_read_control_variables( rx_control_data_t* rx_data ) {
     switch (err) {
         case ESP_OK:
             ESP_LOGI(TAG,"READ_CONTROL_DATA OK\n");
-            res = VARIABLES_OK;
+            if(check_variables(rx_data))
+                res = VARIABLES_OK;
+            else
+                res = ERROR_READING_MEM;
             break;
         case ESP_ERR_NVS_NOT_FOUND:
             ESP_LOGI(TAG,"CONTROL_DATA NOT WRITTEN\n");

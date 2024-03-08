@@ -706,11 +706,11 @@ static esp_err_t gpio_start() {
 void outputs_control(TimerHandle_t xTimer) {
 
     if(control_variables_status != WAIT_VARIABLES_FROM_FB) {
-            control_lights( );
-            control_temperature( );
-            control_humity( );
-            control_soil( );
-        }
+        control_lights( );
+        control_temperature( );
+        control_humity( );
+        control_soil( );
+    }
 
 }
 
@@ -769,6 +769,7 @@ void outputsTask ( void* pvParameters ) {
         case ERROR_READING_MEM:
             //TODO: solve error nvs mem
             ESP_LOGI(TAG, "ERROR_READING_MEM");
+            control_variables_status = WAIT_VARIABLES_FROM_FB;
             break;
         default:
             break;
@@ -787,16 +788,17 @@ void outputsTask ( void* pvParameters ) {
         current_hour = now.tm_hour;
 
         if(xQueueReceive(FB2outputs, &rx_data_update, 10/portTICK_PERIOD_MS) == pdTRUE) {
-            ESP_LOGD(TAG, "New cotrol data received from FB");
+            ESP_LOGI(TAG, "New cotrol data received from FB");
             if(update_control(&rx_data_update)) {
-                ESP_LOGD(TAG, "New cotrol data updated from FB");
+                ESP_LOGI(TAG, "New cotrol data updated from FB");
+                control_variables_status = VARIABLES_OK;
             }
             if(nvs_write_control_variables(&rx_data_update.control_data)) {
-                ESP_LOGD(TAG, "New cotrol data saved");
+                ESP_LOGI(TAG, "New cotrol data saved");
             }
         }
         if(xQueueReceive(sensors2outputs, &sensor_data_2, 10/portTICK_PERIOD_MS) == pdTRUE) {
-            ESP_LOGD(TAG, "New sensor data received from sampler");
+            ESP_LOGI(TAG, "New sensor data received from sampler");
         }
 
         if(curr_tx_data.lights_on != prev_tx_data.lights_on

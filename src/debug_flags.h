@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define DEBUG               1
+#define DEBUG               0
 #define DEBUG_ERASE         0
 #define DEBUG_CTRL_VARS_MEM 1
 

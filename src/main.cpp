@@ -38,8 +38,6 @@ String childPath[15] = {"/TempCtrlHigh","/HumCtrlHigh","/TemperatureControl","/H
                         "/HumiditySet", "/OffHour", "/OnHour", "/SoilMoistureSet",
                         "/TemperatureSet", "/Water"
                        };
-char path_to_dashboard[100];
-char user_uid[50];
 
 static const char *TAG = "**MAIN**";
 
@@ -79,6 +77,13 @@ uint8_t res = 0;
 
 extern char wifi_ssid[];
 extern char wifi_pass[];
+
+char gb_connected_path[50];
+char gb_mac_user_path[50];
+char path_to_dashboard[100];
+char user_uid[50];
+char gb_control_path[50];
+char path_to_gb[50];
 
 /*******************************
  Update variables from FireBase
@@ -279,8 +284,7 @@ bool fb_update_control(tx_control_data_t *control_data) {
 
 bool gb_firebase_init( void ) {
 
-    unsigned char mac_base[6] = {0};
-    char gb_connected_path[50];    
+    unsigned char mac_base[6] = {0};        
     unsigned long start_uid_fetch = 0;
     tm now;
     struct tm timeinfo = { 0 };
@@ -302,23 +306,23 @@ bool gb_firebase_init( void ) {
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     ESP_LOGI("**FB**", "Path to user connected %s", gb_connected_path);
     Firebase.setBool(firebaseData2, gb_connected_path, true);
-    sprintf(gb_connected_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
+    sprintf(gb_mac_user_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     
     start_uid_fetch = millis();
-    if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
+    if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
         vTaskDelay(1000/portTICK_PERIOD_MS);
-        if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
+        if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
             vTaskDelay(1000/portTICK_PERIOD_MS);
-            if (!Firebase.getString(firebaseData2, gb_connected_path, user_uid)) {
-                Firebase.setString(firebaseData2, gb_connected_path, "NULL");
+            if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
+                Firebase.setString(firebaseData2, gb_mac_user_path, "NULL");
                 //rgb_state |= 1UL << NO_USER;//TODO: specify these by returning false?
                 sprintf(user_uid, "%s", "NULL");
             }
         }
     }
     while (strcmp(user_uid, "NULL") == 0 || (millis() - start_uid_fetch < UID_FETCH_TO)) {
-        Firebase.getString(firebaseData2, gb_connected_path, user_uid);
+        Firebase.getString(firebaseData2, gb_mac_user_path, user_uid);
         //debounceWiFiReset();//TODO: constantly run debounce on task? timer on main task?
         vTaskDelay(pdMS_TO_TICKS(1000/portTICK_PERIOD_MS));
     }
@@ -341,10 +345,11 @@ bool gb_firebase_init( void ) {
     sprintf(esp_frst_conn_path, "/growboxs/%s/dashboard/FirstConnection", user_uid);
     Firebase.setString(firebaseData2, esp_frst_conn_path, esp_frst_conn);
 
+    sprintf(path_to_gb, "/growboxs/%s", user_uid);
     sprintf(path_to_dashboard, "/growboxs/%s/dashboard", user_uid);
-    sprintf(gb_connected_path, "/growboxs/%s/control", user_uid);    
-    ESP_LOGI("**FB**", "Path to control %s", gb_connected_path);
-    if(!Firebase.beginMultiPathStream(firebaseData1, gb_connected_path, childPath, sizeof(childPath))) {
+    sprintf(gb_control_path, "/growboxs/%s/control", user_uid);    
+    ESP_LOGI("**FB**", "Path to control %s", gb_control_path);
+    if(!Firebase.beginMultiPathStream(firebaseData1, gb_control_path, childPath, sizeof(childPath))) {
         ESP_LOGI("**FB**", "Couldnt begin stream");
         return false;
     }
@@ -355,8 +360,8 @@ bool gb_firebase_init( void ) {
 
 }
 
-class Button
-{
+class Button {
+
   private:
     uint8_t btn;
     uint16_t state;
@@ -377,8 +382,7 @@ class Button
       gpio_config(&io_conf);
     }
 
-    bool debounce() 
-    {
+    bool debounce() {
       state = (state<<1) | gpio_get_level((gpio_num_t)btn) | 0xfe00;
     
       if(state == 0xff00)
@@ -519,7 +523,7 @@ void setup() {
     } else {
         ESP_LOGI(TAG, "Failed to create queues");
     }
-
+    //create tasks and check for wifi credentials
     no_credentials = create_tasks();
     
     if(!no_credentials) {
@@ -562,6 +566,9 @@ void loop() {
     if(!no_credentials) {
 
         if( wifi_res_butt.debounce( ) ) {
+            Firebase.setBool(firebaseData2, gb_connected_path, false);
+            Firebase.deleteNode(firebaseData2, path_to_gb);
+            Firebase.setString(firebaseData2, gb_mac_user_path,"NULL");
             nvs_erase_wifi_creds( );
             ESP_LOGI(TAG, "WiFi errased, reset ESP32");
             vTaskDelay(10);

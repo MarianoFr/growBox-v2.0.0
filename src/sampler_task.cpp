@@ -82,7 +82,7 @@ static uint16_t get_mean_soil_moisture() {
     //Dependant with number of active relays, source voltage drops
     slope = -0.5*(((v0/1000)-0.02*nmbr_outputs)/(1-((v0/1000)-0.02*nmbr_outputs)/((v05/1000)-0.02*nmbr_outputs)));
     intercept = 0.5*(1/(1-((v0/1000)-0.02*nmbr_outputs)/((v05/1000)-0.02*nmbr_outputs)));
-    ESP_LOGD(TAG, "Soil moisture slope=%.2f and intercept=%.2f", slope, intercept);
+    ESP_LOGI(TAG, "Soil moisture slope=%.2f and intercept=%.2f", slope, intercept);
     measure = analogReadMilliVolts(SOILPIN);    
     voltage_f = (float)measure/1000;
     mean = (1-alpha)*mean + alpha*((1/voltage_f)*slope + intercept)*100;
@@ -132,22 +132,21 @@ void samplerTask ( void* pvParameters ) {
     time_t now = 0;
     struct tm timeinfo = { 0 };      
 
-    ESP_LOGD(TAG, "samplerTask initialized");
+    ESP_LOGI(TAG, "samplerTask initialized");
 
     htu21_init();
-    bh1750_init();     
-
+    bh1750_init();
 
     /* Block to wait for wifi_task to synch sntp time to notify this task. */
     xTaskNotifyWait( 0x01, 0x01, NULL, portMAX_DELAY );
-    ESP_LOGD(TAG, "SamplerTask notified by wifi utils");
+    ESP_LOGI(TAG, "SamplerTask notified by wifi utils");
 
     for ( ; ; ) {
         
         time(&now);
         localtime_r(&now, &timeinfo);
         strftime(sensor_data.esp_tag, 20, "%Y-%m-%d %X", &timeinfo);
-        ESP_LOGD(TAG, "ESP tag: %s", sensor_data.esp_tag);
+        ESP_LOGI(TAG, "ESP tag: %s", sensor_data.esp_tag);
 
         if(read_BH1750()) {
             sensor_data.lux = auxLux;
