@@ -45,6 +45,9 @@ extern TaskHandle_t wiFiHandler;
 extern TaskHandle_t outputsHandler;
 extern TaskHandle_t samplingHandler;
 
+//Reset button timer
+static TimerHandle_t xRstButTimer;
+
 ESP32Time rtc;
 
 QueueHandle_t sensors2FB;
@@ -497,6 +500,25 @@ bool synch_time() {
 
 }
 
+static void RstButTimerCB(TimerHandle_t xTimer) {
+
+    if(!no_credentials) {
+
+        if( wifi_res_butt.debounce( ) ) {
+            if(fb_status) {
+                Firebase.setBool(firebaseData2, gb_connected_path, false);
+                Firebase.deleteNode(firebaseData2, path_to_gb);
+                Firebase.setString(firebaseData2, gb_mac_user_path,"NULL");
+            }            
+            nvs_erase_wifi_creds( );
+            ESP_LOGI(TAG, "WiFi errased, reset ESP32");
+            vTaskDelay(10);
+            esp_restart( );
+        }
+
+    }
+}
+
 void setup() {
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -523,8 +545,13 @@ void setup() {
     } else {
         ESP_LOGI(TAG, "Failed to create queues");
     }
+
     //create tasks and check for wifi credentials
     no_credentials = create_tasks();
+
+    xRstButTimer = xTimerCreate("RGB timer", 50 / portTICK_PERIOD_MS, pdTRUE, (void *)0, RstButTimerCB);
+    configASSERT(xRstButTimer);
+    configASSERT(xTimerStart(xRstButTimer, 10 / portTICK_PERIOD_MS));    
     
     if(!no_credentials) {
         local_wifi_rgb_state &= ~(1UL << NO_WIFI_CRED);
@@ -563,17 +590,7 @@ void setup() {
 
 void loop() {
 
-    if(!no_credentials) {
-
-        if( wifi_res_butt.debounce( ) ) {
-            Firebase.setBool(firebaseData2, gb_connected_path, false);
-            Firebase.deleteNode(firebaseData2, path_to_gb);
-            Firebase.setString(firebaseData2, gb_mac_user_path,"NULL");
-            nvs_erase_wifi_creds( );
-            ESP_LOGI(TAG, "WiFi errased, reset ESP32");
-            vTaskDelay(10);
-            esp_restart( );
-        }
+    if(!no_credentials) {        
         
         static UBaseType_t task_stack_free_saved = -1;
             UBaseType_t task_stack_free = uxTaskGetStackHighWaterMark( NULL );
