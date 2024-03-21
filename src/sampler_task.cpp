@@ -127,6 +127,9 @@ void htu21_init() {
 }
 
 void samplerTask ( void* pvParameters ) {
+
+    // UBaseType_t task_stack_free_saved = -1;
+    // UBaseType_t task_stack_free;
     
     tx_sensor_data_t sensor_data;
     time_t now = 0;
@@ -142,7 +145,21 @@ void samplerTask ( void* pvParameters ) {
     ESP_LOGI(TAG, "SamplerTask notified by wifi utils");
 
     for ( ; ; ) {
+
+        // task_stack_free_saved = -1;
+		// task_stack_free = xPortGetFreeHeapSize ( );
+		// if( task_stack_free_saved != task_stack_free ) { 
+		// 	task_stack_free_saved = task_stack_free;
+		// 	ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
+		// }
         
+        // task_stack_free_saved = -1;
+		// task_stack_free = uxTaskGetStackHighWaterMark(NULL);
+		// if( task_stack_free_saved != task_stack_free ) { 
+		// 	task_stack_free_saved = task_stack_free;
+		// 	ESP_LOGI(TAG, "Task has %u bytes watermark", task_stack_free_saved * sizeof(size_t) );
+		// }    
+
         time(&now);
         localtime_r(&now, &timeinfo);
         strftime(sensor_data.esp_tag, 20, "%Y-%m-%d %X", &timeinfo);

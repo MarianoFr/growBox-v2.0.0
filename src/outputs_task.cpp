@@ -716,6 +716,9 @@ void outputs_control(TimerHandle_t xTimer) {
 
 void outputsTask ( void* pvParameters ) {
 
+    // UBaseType_t task_stack_free_saved = -1;
+    // UBaseType_t task_stack_free;
+
     rx_control_update_t rx_data_update;    
     tm now;
 
@@ -783,6 +786,20 @@ void outputsTask ( void* pvParameters ) {
     outputs_rgb_state &= ~(1UL << RTC_ERR);
 
     for ( ; ; ) {
+
+        // task_stack_free_saved = -1;
+		// task_stack_free = xPortGetFreeHeapSize ( );
+		// if( task_stack_free_saved != task_stack_free ) { 
+		// 	task_stack_free_saved = task_stack_free;
+		// 	ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
+		// }
+
+        // task_stack_free_saved = -1;
+		// task_stack_free = uxTaskGetStackHighWaterMark(NULL);
+		// if( task_stack_free_saved != task_stack_free ) { 
+		// 	task_stack_free_saved = task_stack_free;
+		// 	ESP_LOGI(TAG, "Task has %u bytes watermark", task_stack_free_saved * sizeof(size_t) );
+		// }        
 
         now = rtc.getTimeStruct();
         current_hour = now.tm_hour;

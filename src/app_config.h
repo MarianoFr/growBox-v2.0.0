@@ -1,9 +1,8 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
 
-#define configWIFI_STACK_SIZE      20*1024
 #define configSAMPLER_STACK_SIZE   10*1024
-#define configOUTPUTS_STACK_SIZE   20*1024
+#define configOUTPUTS_STACK_SIZE   10*1024
 
 #define GB_TIME_ZONE               "WST+3"
 #define NTP_RETRY 3

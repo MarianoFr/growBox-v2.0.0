@@ -88,6 +88,9 @@ char user_uid[50];
 char gb_control_path[50];
 char path_to_gb[50];
 
+// UBaseType_t task_stack_free_saved = -1;
+// UBaseType_t task_stack_free;
+
 /*******************************
  Update variables from FireBase
 *******************************/
@@ -214,13 +217,13 @@ void streamTimeoutCallback(bool timeout) {
   Update variables in FireBase
 *******************************/
 void write2FBSensor (tx_sensor_data_t *sensor, FirebaseJson *dashBoard) {
-  //FirebaseJson json;
+
   (*dashBoard).add("ESPtag", String((*sensor).esp_tag));
   (*dashBoard).add("Humidity", (*sensor).humidity);
   (*dashBoard).add("Temperature", (*sensor).temperature);
   (*dashBoard).add("Lux", (*sensor).lux);
   (*dashBoard).add("SoilMoisture", (*sensor).soil_humidity);
-  //dashBoard->add(json);
+
 }
 
 /*******************************
@@ -247,6 +250,7 @@ bool fb_update_sensor(tx_sensor_data_t *sensor) {
     else {        
         res = false;
     }
+    dashBoard.clear();
     return res;
 
 }
@@ -280,7 +284,7 @@ bool fb_update_control(tx_control_data_t *control_data) {
     }
     if(!(*control_data).water_on)
         Firebase.setBool(firebaseData2, path_to_water, false);
-
+    dashBoard.clear();
     return res;
 
 }
@@ -333,8 +337,7 @@ bool gb_firebase_init( void ) {
     if(strcmp(user_uid, "NULL") == 0) {
         ESP_LOGI("**FB**", "User is NULL");
         return false;
-    }
-       
+    }       
 
     //Get number of resets and increase
     sprintf(nmbr_rst_path, "/growboxs/%s/dashboard/NmbrResets",user_uid);
@@ -590,40 +593,48 @@ void setup() {
 
 void loop() {
 
+    // task_stack_free_saved = -1;
+    // task_stack_free = xPortGetFreeHeapSize ( );
+    // if( task_stack_free_saved != task_stack_free ) { 
+    //     task_stack_free_saved = task_stack_free;
+    //     ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
+    // }
+
+    // task_stack_free_saved = -1;
+    // task_stack_free = uxTaskGetStackHighWaterMark(NULL);
+    // if( task_stack_free_saved != task_stack_free ) { 
+    //     task_stack_free_saved = task_stack_free;
+    //     ESP_LOGI(TAG, "Task has %u bytes watermark", task_stack_free_saved * sizeof(size_t) );
+    // }    
+
     if(!no_credentials) {        
-        
-        static UBaseType_t task_stack_free_saved = -1;
-            UBaseType_t task_stack_free = uxTaskGetStackHighWaterMark( NULL );
-            if( task_stack_free_saved != task_stack_free ) { 
-                task_stack_free_saved = task_stack_free;
-                ESP_LOGI(TAG, "Task has %u bytes availables", task_stack_free_saved * sizeof(size_t) );
-            }        
-            if(WiFi.status() == WL_CONNECTED) {
-                local_wifi_rgb_state |= (1UL << WIFI_CONN);
-                local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
-                if(fb_status) {
-                    if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
-                        ESP_LOGI(TAG, "Received sensor data to push");
-                        ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
-                            sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
-                        fb_status = fb_update_sensor(&sensor_data_1);
-                    }
-                    if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
-                        fb_status = fb_update_control(&control_data);
-                        if(fb_status)//Notify control update, water control involved
-                            xTaskNotify(outputsHandler,1,eNoAction);
-                        else
-                            xTaskNotify(outputsHandler,2,eNoAction);//Failed to update
-                    }
+                    
+        if(WiFi.status() == WL_CONNECTED) {
+            local_wifi_rgb_state |= (1UL << WIFI_CONN);
+            local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
+            if(fb_status) {
+                if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
+                    ESP_LOGI(TAG, "Received sensor data to push");
+                    ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
+                        sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
+                    fb_status = fb_update_sensor(&sensor_data_1);
+                }
+                if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
+                    fb_status = fb_update_control(&control_data);
+                    if(fb_status)//Notify control update, water control involved
+                        xTaskNotify(outputsHandler,1,eNoAction);
+                    else
+                        xTaskNotify(outputsHandler,2,eNoAction);//Failed to update
                 }
             }
-            else {
-                //TODO: is it is necessary to reconnect wifi? or is it is already solved automatically by api
-                local_wifi_rgb_state |= (1UL << WIFI_DISC);
-                local_wifi_rgb_state &= ~(1UL << WIFI_CONN);
-            }
-            xQueueSend(wifiRgbState, &local_wifi_rgb_state, 10/portTICK_PERIOD_MS);
-            vTaskDelay(1);
+        }
+        else {
+            //TODO: is it is necessary to reconnect wifi? or is it is already solved automatically by api
+            local_wifi_rgb_state |= (1UL << WIFI_DISC);
+            local_wifi_rgb_state &= ~(1UL << WIFI_CONN);
+        }
+        xQueueSend(wifiRgbState, &local_wifi_rgb_state, 10/portTICK_PERIOD_MS);
+        vTaskDelay(1);
     }
     else {
         ESP_LOGI(TAG, "serverTask initialized");
