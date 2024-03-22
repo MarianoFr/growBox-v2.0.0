@@ -244,12 +244,10 @@ bool fb_update_sensor(tx_sensor_data_t *sensor) {
     FirebaseJson dashBoard;
     write2FBSensor( sensor, &dashBoard );
     ESP_LOGI(TAG, "%s", dashBoard.raw());
-    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard)) {    
+    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard))    
         res = true;
-    }
-    else {        
+    else        
         res = false;
-    }
     dashBoard.clear();
     return res;
 
@@ -262,8 +260,8 @@ bool fb_update_water() {
     sprintf(path_to_water, "/growboxs/%s/control/Water", user_uid);
     if(Firebase.setBool(firebaseData2, path_to_water, false))
         res = true;
+    return res;
 
-    return res;    
 }
 
 bool fb_update_control(tx_control_data_t *control_data) {
@@ -276,12 +274,10 @@ bool fb_update_control(tx_control_data_t *control_data) {
 
     write2FBControl( control_data, &dashBoard );
         
-    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard)) {
+    if(Firebase.updateNode(firebaseData2, path_to_dashboard, dashBoard))
         res = true;
-    }
-    else {
+    else
         res = false;
-    }
     if(!(*control_data).water_on)
         Firebase.setBool(firebaseData2, path_to_water, false);
     dashBoard.clear();
@@ -292,7 +288,7 @@ bool fb_update_control(tx_control_data_t *control_data) {
 bool gb_firebase_init( void ) {
 
     unsigned char mac_base[6] = {0};        
-    unsigned long start_uid_fetch = 0;
+    //unsigned long start_uid_fetch = 0;
     tm now;
     struct tm timeinfo = { 0 };
     char esp_frst_conn_path[100];
@@ -303,7 +299,6 @@ bool gb_firebase_init( void ) {
     
     esp_efuse_mac_get_default(mac_base);
     
-    Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
     Firebase.reconnectWiFi(true);
     Firebase.setReadTimeout(firebaseData2, 1000 * 60);
     /*Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).*/
@@ -316,21 +311,21 @@ bool gb_firebase_init( void ) {
     sprintf(gb_mac_user_path, "users/%02X:%02X:%02X:%02X:%02X:%02X/user/",mac_base[0]
             ,mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     
-    start_uid_fetch = millis();
+    //start_uid_fetch = millis();
     if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
         vTaskDelay(1000/portTICK_PERIOD_MS);
         if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
             vTaskDelay(1000/portTICK_PERIOD_MS);
             if (!Firebase.getString(firebaseData2, gb_mac_user_path, user_uid)) {
                 Firebase.setString(firebaseData2, gb_mac_user_path, "NULL");
-                //rgb_state |= 1UL << NO_USER;//TODO: specify these by returning false?
+                local_wifi_rgb_state |= 1UL << NO_USER;
                 sprintf(user_uid, "%s", "NULL");
             }
         }
     }
-    while (strcmp(user_uid, "NULL") == 0 || (millis() - start_uid_fetch < UID_FETCH_TO)) {
+    while (strcmp(user_uid, "NULL") == 0 ) {//TODO: add a timeput && (millis() - start_uid_fetch < UID_FETCH_TO
+        local_wifi_rgb_state |= 1UL << NO_USER;
         Firebase.getString(firebaseData2, gb_mac_user_path, user_uid);
-        //debounceWiFiReset();//TODO: constantly run debounce on task? timer on main task?
         vTaskDelay(pdMS_TO_TICKS(1000/portTICK_PERIOD_MS));
     }
 
@@ -338,7 +333,7 @@ bool gb_firebase_init( void ) {
         ESP_LOGI("**FB**", "User is NULL");
         return false;
     }       
-
+    local_wifi_rgb_state &= ~(1UL << NO_USER);
     //Get number of resets and increase
     sprintf(nmbr_rst_path, "/growboxs/%s/dashboard/NmbrResets",user_uid);
     Firebase.getInt(firebaseData2, nmbr_rst_path, &nmbr_rst);
@@ -571,8 +566,9 @@ void setup() {
         local_wifi_rgb_state |= (1UL << WIFI_CONN);
         local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
         
+        Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
         fb_status = gb_firebase_init();
-        while(!fb_status && fb_retry < 3) {
+        while(!fb_status && fb_retry < FB_RETRY) {
             fb_retry++;
             fb_status = gb_firebase_init();
         }
@@ -612,21 +608,40 @@ void loop() {
         if(WiFi.status() == WL_CONNECTED) {
             local_wifi_rgb_state |= (1UL << WIFI_CONN);
             local_wifi_rgb_state &= ~(1UL << WIFI_DISC);
-            if(fb_status) {
-                if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
-                    ESP_LOGI(TAG, "Received sensor data to push");
-                    ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
-                        sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
-                    fb_status = fb_update_sensor(&sensor_data_1);
+            // if(fb_retry < FB_RETRY) {
+            if(xQueueReceive(sensors2FB, &sensor_data_1, 10/portTICK_PERIOD_MS) == pdPASS) {
+                ESP_LOGI(TAG, "Received sensor data to push");
+                ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
+                    sensor_data_1.temperature, sensor_data_1.humidity, sensor_data_1.lux, sensor_data_1.soil_humidity);
+                fb_status = fb_update_sensor(&sensor_data_1);
+                if(!fb_status)
+                    fb_retry++;
+                else
+                    fb_retry = 0;
+                //fb_retry = FB_RETRY;
+            }
+            if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
+                fb_status = fb_update_control(&control_data);
+                if(fb_status) {//Notify control update, water control involved
+                    xTaskNotify(outputsHandler,1,eNoAction);
+                    fb_retry = 0;
                 }
-                if(xQueueReceive(outputs2FB, &control_data, 10/portTICK_PERIOD_MS) == pdPASS) {
-                    fb_status = fb_update_control(&control_data);
-                    if(fb_status)//Notify control update, water control involved
-                        xTaskNotify(outputsHandler,1,eNoAction);
-                    else
-                        xTaskNotify(outputsHandler,2,eNoAction);//Failed to update
+                else {
+                    xTaskNotify(outputsHandler,2,eNoAction);//Failed to update
+                    fb_retry++;
                 }
             }
+            // }
+            // else {
+            //     fb_status = false;
+            //     fb_retry = 0;
+            //     Firebase.end(firebaseData1);
+            //     Firebase.end(firebaseData2);
+            //     while(!fb_status) {
+            //         fb_status = gb_firebase_init();
+            //         fb_retry++;//TODO indicate continuous FB error RGB
+            //     }                
+            // }
         }
         else {
             //TODO: is it is necessary to reconnect wifi? or is it is already solved automatically by api

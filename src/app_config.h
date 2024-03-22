@@ -12,6 +12,7 @@
 #define SAMPLER_TASK_PRIORITY      4
 
 #define WIFI_RETRY                 5
+#define FB_RETRY                   10
 #define MAX_IN_TEMP                28/*cosidering the vegetative term*/
 #define MAX_IN_HUM                 65/*considering the vegetative term*/
 #define MIN_IN_TEMP                26
