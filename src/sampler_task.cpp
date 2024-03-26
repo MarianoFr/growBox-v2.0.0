@@ -60,7 +60,7 @@ bool read_htu21( void ) {
     }
     else {
         uint8_t htu_tries = 0;
-        while (!htu.begin() && htu_tries < 5) {
+        if (!htu.begin() && htu_tries < 5) {
             ESP_LOGI(TAG, "Error initialising HTU21");
             htu_tries++;
         }
@@ -98,7 +98,7 @@ void bh1750_init() {
     while (!lightMeter.begin(BH1750::CONTINUOUS_LOW_RES_MODE) && (bh1750_tries < 5)) {
         local_sampler_rgb_state |= 1UL << BH1750_ERR;
         ESP_LOGI(TAG, "Error initialising BH1750");
-        vTaskDelay(10/portTICK_PERIOD_MS);
+        vTaskDelay(500/portTICK_PERIOD_MS);
         bh1750_tries++;
     }
     if (bh1750_tries < 5) {
@@ -111,14 +111,15 @@ void bh1750_init() {
 
 void htu21_init() {
     
+    bool res = false;
     uint8_t htu_tries = 0;
-    while (!htu.begin() && htu_tries < 5) {
+    while (!(res = htu.begin()) && htu_tries < 5) {
         ESP_LOGI(TAG, "Error initialising HTU21");
-        vTaskDelay(10/portTICK_PERIOD_MS);
+        vTaskDelay(500/portTICK_PERIOD_MS);
         htu_tries++;
         local_sampler_rgb_state |= 1UL << HTU21_ERR;
     }
-    if (htu_tries < 5) {
+    if (res) {
         ESP_LOGI(TAG,"HTU21 began");
         local_sampler_rgb_state &= ~(1UL << HTU21_ERR);
     }
@@ -138,6 +139,7 @@ void samplerTask ( void* pvParameters ) {
     ESP_LOGI(TAG, "samplerTask initialized");
 
     htu21_init();
+    vTaskDelay(500/portTICK_PERIOD_MS);
     bh1750_init();
 
     /* Block to wait for wifi_task to synch sntp time to notify this task. */
@@ -181,11 +183,13 @@ void samplerTask ( void* pvParameters ) {
         sensor_data.soil_humidity = get_mean_soil_moisture();
         ESP_LOGI(TAG, "Temperature: %.02f°C\nHumidity: %.02f%%\nLux: %u\nSoil moisture: %d%%\n", 
             sensor_data.temperature, sensor_data.humidity, sensor_data.lux, sensor_data.soil_humidity);
+        
+        ESP_LOGI(TAG, "localSamplerRgb: %d", local_sampler_rgb_state);
 
-        xQueueSend(sensors2FB, &sensor_data, 1/portTICK_PERIOD_MS);
-        xQueueSend(sensors2outputs, &sensor_data, 1/portTICK_PERIOD_MS);
-        xQueueSend(samplerRgbState, &local_sampler_rgb_state, 1/portTICK_PERIOD_MS);
-        xQueueReceive(outputs2sampler, &nmbr_outputs, 1/portTICK_PERIOD_MS);
+        xQueueSend(sensors2FB, &sensor_data, 100/portTICK_PERIOD_MS);
+        xQueueSend(sensors2outputs, &sensor_data, 100/portTICK_PERIOD_MS);
+        xQueueSend(samplerRgbState, &local_sampler_rgb_state, 100/portTICK_PERIOD_MS);
+        xQueueReceive(outputs2sampler, &nmbr_outputs, 100/portTICK_PERIOD_MS);
         vTaskDelay((DELAY_TIME_BETWEEN_ITEMS_MS) / portTICK_PERIOD_MS);
         
     }

@@ -558,7 +558,8 @@ void setup() {
         res = WiFi.begin(wifi_ssid, wifi_pass);
         ESP_LOGI(TAG, "Began WiFi with ssid: %s and pass: %s", wifi_ssid, wifi_pass);
         while(WiFi.status() != WL_CONNECTED) {
-            vTaskDelay(10/portTICK_RATE_MS);            
+            vTaskDelay(100/portTICK_RATE_MS);
+            //res = WiFi.begin(wifi_ssid, wifi_pass);        
         }
         ESP_LOGI(TAG, "WiFi connected");
         vTaskDelay(10/portTICK_RATE_MS);        

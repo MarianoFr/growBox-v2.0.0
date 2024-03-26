@@ -110,147 +110,150 @@ static void RGBalert(TimerHandle_t xTimer) {
 
   xQueueReceive(wifiRgbState, &wifi_rgb_state, 0);
   xQueueReceive(samplerRgbState, &sampler_rgb_state, 0);
+
+    ESP_LOGI(TAG, "wifiRGB: %d", wifi_rgb_state);
+    ESP_LOGI(TAG, "samplerRgb: %d", sampler_rgb_state);
+
   outputs_rgb_state = outputs_rgb_state | sampler_rgb_state | wifi_rgb_state;
-  switch (try_out)
-  {
-  case WIFI_DISC:
-    if ((outputs_rgb_state >> WIFI_DISC) & 1U) {
-      green = 0;
-      red = 0;
-      blue = 0;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Negro");
-      ESP_LOGI(TAG, "WIFI_DISC");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case WIFI_CONN:
-    if ((outputs_rgb_state >> WIFI_CONN) & 1U) {
-      green = 0;
-      red = 35;
-      blue = 255;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Violeta");
-      ESP_LOGI(TAG, "WIFI_CONN");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case NO_WIFI_CRED:
-    if ((outputs_rgb_state >> NO_WIFI_CRED) & 1U) {
-      green = 0;
-      red = 255;
-      blue = 0;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Rojo");
-      ESP_LOGI(TAG, "NO_WIFI_CRED"); 
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case NO_USER:
-    if ((outputs_rgb_state >> NO_USER) & 1U) {
-      green = 255;
-      red = 0;
-      blue = 0;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Verde");
-      ESP_LOGI(TAG, "NO_USER"); //
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case HTU21_ERR:
-    if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
-      green = 0;
-      red = 0;
-      blue = 255;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Azul");
-      ESP_LOGI(TAG, "HTU21_ERR");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case RTC_ERR:
-    if ((outputs_rgb_state >> RTC_ERR) & 1U) {
-      green = 255;
-      red = 255;
-      blue = 50;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Amarillo");
-      ESP_LOGI(TAG, "RTC_ERR");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case SOIL_ERR:
-    if ((outputs_rgb_state >> SOIL_ERR) & 1U) {
-      green = 100;
-      red = 120;
-      blue = 255;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Blanco");
-      ESP_LOGI(TAG, "SOIL_ERR");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  case BH1750_ERR:
-    if ((outputs_rgb_state >> BH1750_ERR) & 1U) {
-      green = 0;
-      red = 150;
-      blue = 255;
-#if SERIAL_DEBUG && RGB_DEBUG
-      ESP_LOGI(TAG, "Rosa");
-      ESP_LOGI(TAG, "BH_1750_ERR");
-#endif
-      ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
-      ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
-      ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
-      ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
-      ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
-    }
-    break;
-  default:
-    break;
+  switch (try_out) {
+    case WIFI_DISC:
+        if ((outputs_rgb_state >> WIFI_DISC) & 1U) {
+        green = 0;
+        red = 0;
+        blue = 0;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Negro");
+        ESP_LOGI(TAG, "WIFI_DISC");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case WIFI_CONN:
+        if ((outputs_rgb_state >> WIFI_CONN) & 1U) {
+        green = 0;
+        red = 35;
+        blue = 255;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Violeta");
+        ESP_LOGI(TAG, "WIFI_CONN");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case NO_WIFI_CRED:
+        if ((outputs_rgb_state >> NO_WIFI_CRED) & 1U) {
+        green = 0;
+        red = 255;
+        blue = 0;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Rojo");
+        ESP_LOGI(TAG, "NO_WIFI_CRED"); 
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case NO_USER:
+        if ((outputs_rgb_state >> NO_USER) & 1U) {
+        green = 255;
+        red = 0;
+        blue = 0;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Verde");
+        ESP_LOGI(TAG, "NO_USER"); //
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case HTU21_ERR:
+        if ((outputs_rgb_state >> HTU21_ERR) & 1U) {
+        green = 0;
+        red = 0;
+        blue = 255;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Azul");
+        ESP_LOGI(TAG, "HTU21_ERR");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case RTC_ERR:
+        if ((outputs_rgb_state >> RTC_ERR) & 1U) {
+        green = 255;
+        red = 255;
+        blue = 50;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Amarillo");
+        ESP_LOGI(TAG, "RTC_ERR");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case SOIL_ERR:
+        if ((outputs_rgb_state >> SOIL_ERR) & 1U) {
+        green = 100;
+        red = 120;
+        blue = 255;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Blanco");
+        ESP_LOGI(TAG, "SOIL_ERR");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    case BH1750_ERR:
+        if ((outputs_rgb_state >> BH1750_ERR) & 1U) {
+        green = 0;
+        red = 150;
+        blue = 255;
+    #if RGB_DEBUG
+        ESP_LOGI(TAG, "Rosa");
+        ESP_LOGI(TAG, "BH_1750_ERR");
+    #endif
+        ledc_set_duty(LEDC_MODE, LEDC_RED_CHANNEL, red);
+        ledc_set_duty(LEDC_MODE, LEDC_GREEN_CHANNEL, green);
+        ledc_set_duty(LEDC_MODE, LEDC_BLUE_CHANNEL, blue);
+        ledc_update_duty(LEDC_MODE, LEDC_RED_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_GREEN_CHANNEL);
+        ledc_update_duty(LEDC_MODE, LEDC_BLUE_CHANNEL);
+        }
+        break;
+    default:
+        break;
   }
   try_out++;
   if (try_out > 7)
